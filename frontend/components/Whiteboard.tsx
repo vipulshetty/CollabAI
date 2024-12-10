@@ -1,201 +1,129 @@
 'use client';
-import { useRef, useEffect, useState } from 'react';
-import { Socket } from 'socket.io-client';
-import { Palette, Eraser, RotateCcw, Download, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Pencil, Eraser, RotateCcw, Download } from 'lucide-react';
 
 interface WhiteboardProps {
-  socket: Socket | null;
-  roomId: string;
+  isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Whiteboard({ socket, roomId, onClose }: WhiteboardProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState('#000000');
-  const [lineWidth, setLineWidth] = useState(2);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
-  const [drawHistory, setDrawHistory] = useState<ImageData[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-
     const canvas = canvasRef.current;
-    canvas.width = canvas.offsetWidth * 2;
-    canvas.height = canvas.offsetHeight * 2;
+    if (!canvas) return;
+
+    // Set canvas to a more standard size
+    canvas.width = 640 * 2; // Standard width (scaled for retina)
+    canvas.height = 360 * 2; // 16:9 aspect ratio (scaled for retina)
 
     const context = canvas.getContext('2d');
     if (!context) return;
 
     context.scale(2, 2);
     context.lineCap = 'round';
-    context.strokeStyle = color;
-    context.lineWidth = lineWidth;
+    context.strokeStyle = tool === 'eraser' ? 'white' : 'black';
+    context.lineWidth = 2;
     contextRef.current = context;
-
-    // Save initial canvas state
-    saveToHistory();
-  }, []);
-
-  const saveToHistory = () => {
-    if (!contextRef.current || !canvasRef.current) return;
-    const imageData = contextRef.current.getImageData(
-      0, 0, 
-      canvasRef.current.width, 
-      canvasRef.current.height
-    );
-    setDrawHistory(prev => [...prev.slice(0, historyIndex + 1), imageData]);
-    setHistoryIndex(prev => prev + 1);
-  };
+  }, [tool]);
 
   const startDrawing = ({ nativeEvent }: React.MouseEvent) => {
-    const { offsetX, offsetY } = nativeEvent;
     if (!contextRef.current) return;
-
+    const { offsetX, offsetY } = nativeEvent;
     contextRef.current.beginPath();
     contextRef.current.moveTo(offsetX, offsetY);
     setIsDrawing(true);
-
-    socket?.emit('draw-start', { roomId, x: offsetX, y: offsetY, color, lineWidth, tool });
   };
 
   const draw = ({ nativeEvent }: React.MouseEvent) => {
     if (!isDrawing || !contextRef.current) return;
-
     const { offsetX, offsetY } = nativeEvent;
     contextRef.current.lineTo(offsetX, offsetY);
     contextRef.current.stroke();
-
-    socket?.emit('draw-move', { roomId, x: offsetX, y: offsetY });
   };
 
   const stopDrawing = () => {
     if (!contextRef.current) return;
     contextRef.current.closePath();
     setIsDrawing(false);
-    saveToHistory();
-    socket?.emit('draw-end', { roomId });
   };
 
-  const handleUndo = () => {
-    if (historyIndex > 0 && contextRef.current && canvasRef.current) {
-      const prevState = drawHistory[historyIndex - 1];
-      contextRef.current.putImageData(prevState, 0, 0);
-      setHistoryIndex(prev => prev - 1);
-      socket?.emit('draw-undo', { roomId });
-    }
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const context = contextRef.current;
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const handleDownload = () => {
-    if (!canvasRef.current) return;
+  const downloadCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
-    link.download = `whiteboard-${Date.now()}.png`;
-    link.href = canvasRef.current.toDataURL();
+    link.download = 'whiteboard.png';
+    link.href = dataUrl;
     link.click();
   };
 
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on('draw-start', ({ x, y, color, lineWidth, tool }) => {
-      if (!contextRef.current) return;
-      contextRef.current.beginPath();
-      contextRef.current.strokeStyle = color;
-      contextRef.current.lineWidth = tool === 'eraser' ? 20 : lineWidth;
-      contextRef.current.moveTo(x, y);
-    });
-
-    socket.on('draw-move', ({ x, y }) => {
-      if (!contextRef.current) return;
-      contextRef.current.lineTo(x, y);
-      contextRef.current.stroke();
-    });
-
-    socket.on('draw-end', () => {
-      if (!contextRef.current) return;
-      contextRef.current.closePath();
-      saveToHistory();
-    });
-
-    socket.on('draw-undo', () => {
-      if (historyIndex > 0 && contextRef.current && canvasRef.current) {
-        const prevState = drawHistory[historyIndex - 1];
-        contextRef.current.putImageData(prevState, 0, 0);
-        setHistoryIndex(prev => prev - 1);
-      }
-    });
-
-    return () => {
-      socket.off('draw-start');
-      socket.off('draw-move');
-      socket.off('draw-end');
-      socket.off('draw-undo');
-    };
-  }, [socket, historyIndex, drawHistory]);
+  if (!isOpen) return null;
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer"
-          />
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={lineWidth}
-            onChange={(e) => setLineWidth(Number(e.target.value))}
-            className="w-32"
-          />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+    >
+      <div className="bg-white rounded-lg p-4 w-[640px] h-[460px]">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setTool('pencil')}
+              className={`p-2 rounded ${tool === 'pencil' ? 'bg-blue-100' : ''}`}
+            >
+              <Pencil className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setTool('eraser')}
+              className={`p-2 rounded ${tool === 'eraser' ? 'bg-blue-100' : ''}`}
+            >
+              <Eraser className="w-5 h-5" />
+            </button>
+            <button
+              onClick={clearCanvas}
+              className="p-2 rounded hover:bg-gray-100"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+            <button
+              onClick={downloadCanvas}
+              className="p-2 rounded hover:bg-gray-100"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
           <button
-            onClick={() => setTool('pen')}
-            className={`p-2 rounded ${tool === 'pen' ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
           >
-            <Palette size={20} />
-          </button>
-          <button
-            onClick={() => setTool('eraser')}
-            className={`p-2 rounded ${tool === 'eraser' ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-          >
-            <Eraser size={20} />
-          </button>
-          <button
-            onClick={handleUndo}
-            className="p-2 rounded hover:bg-gray-100"
-            disabled={historyIndex <= 0}
-          >
-            <RotateCcw size={20} />
-          </button>
-          <button
-            onClick={handleDownload}
-            className="p-2 rounded hover:bg-gray-100"
-          >
-            <Download size={20} />
+            Close
           </button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded hover:bg-gray-100"
-        >
-          <X size={20} />
-        </button>
-      </div>
-      <div className="flex-1 overflow-hidden">
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
-          className="w-full h-full touch-none"
+          className="w-full h-[360px] border rounded bg-white"
+          style={{ cursor: tool === 'pencil' ? 'crosshair' : 'default' }}
         />
       </div>
-    </div>
+    </motion.div>
   );
 } 

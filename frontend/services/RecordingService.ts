@@ -1,30 +1,52 @@
-import { S3 } from 'aws-sdk';
-
 export class RecordingService {
-  private s3: S3;
+  private mediaRecorder: MediaRecorder | null = null;
+  private recordedChunks: Blob[] = [];
 
-  constructor() {
-    this.s3 = new S3({
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_REGION
+  async startRecording(stream: MediaStream): Promise<boolean> {
+    try {
+      this.recordedChunks = [];
+      this.mediaRecorder = new MediaRecorder(stream);
+
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.recordedChunks.push(event.data);
+        }
+      };
+
+      this.mediaRecorder.start();
+      return true;
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      return false;
+    }
+  }
+
+  async stopRecording(): Promise<Blob | null> {
+    return new Promise((resolve) => {
+      if (!this.mediaRecorder) {
+        resolve(null);
+        return;
+      }
+
+      this.mediaRecorder.onstop = () => {
+        const recordedBlob = new Blob(this.recordedChunks, { type: 'video/webm' });
+        this.recordedChunks = [];
+        resolve(recordedBlob);
+      };
+
+      this.mediaRecorder.stop();
     });
   }
 
-  async uploadRecording(file: File, meetingId: string) {
-    const params = {
-      Bucket: process.env.AWS_S3_BUCKET_NAME!,
-      Key: `recordings/${meetingId}/${file.name}`,
-      Body: file,
-      ContentType: file.type
-    };
-
-    try {
-      const data = await this.s3.upload(params).promise();
-      return data.Location;
-    } catch (error) {
-      console.error('Error uploading recording:', error);
-      throw error;
-    }
+  downloadRecording(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    document.body.appendChild(a);
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `recording-${new Date().toISOString()}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   }
 } 

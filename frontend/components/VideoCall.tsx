@@ -8,6 +8,8 @@ import ChatSystem from './ChatSystem';
 import { socketService } from '@/services/socketService';
 import { motion } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
+import { RecordingService } from '@/services/RecordingService';
+import Whiteboard from './Whiteboard';
 
 interface VideoCallProps {
   peerId: string;
@@ -29,6 +31,9 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const isEndingRef = useRef(false);
   const endCallTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const recordingService = new RecordingService();
 
   useEffect(() => {
     const initializeMedia = async () => {
@@ -100,35 +105,32 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [socketReady, showChat]);
 
   useEffect(() => {
-    if (socketService.getSocket()) {
-      console.log('Initializing transcription service...');
-      const service = new TranscriptionService(
-        socketService.getSocket()!,
-        peerId,
-        {
-          continuous: true,
-          interimResults: true,
-          language: 'en-US'
-        }
-      );
+    if (socketReady) {
+      const socket = socketService.getSocket();
+      const service = new TranscriptionService(socket!, peerId);
       setTranscriptionService(service);
+
+      // Start transcription automatically
+      service.start();
       setIsTranscribing(true);
 
-      socketService.getSocket()!.on('transcription', (data: { transcript: string }) => {
-        console.log('Received Transcript:', data.transcript);
+      // Listen for transcription updates
+      socket?.on('transcription', (data) => {
+        console.log('Received transcription:', data);
         setTranscripts(prev => [...prev, data.transcript]);
       });
 
-      service.start();
-      console.log('Transcription service started automatically');
+      socket?.on('transcription-error', (error) => {
+        console.error('Transcription error:', error);
+      });
 
       return () => {
-        console.log('Cleaning up transcription service...');
         service.stop();
-        socketService.getSocket()?.off('transcription');
+        socket?.off('transcription');
+        socket?.off('transcription-error');
       };
     }
-  }, [peerId]);
+  }, [socketReady, peerId]);
 
   const handleToggleAudio = () => {
     if (localStream) {
@@ -150,68 +152,75 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
-  const handleEndCall = async () => {
-    try {
-      if (isEndingRef.current) return;
-      isEndingRef.current = true;
+  const handleEndMeeting = async () => {  // Add 'async' here
+  try {
+    if (isEndingRef.current) return;
+    isEndingRef.current = true;
 
-      // Stop transcription first
-      if (transcriptionService) {
-        transcriptionService.stop();
-      }
-
-      // Get all transcripts
-      const serviceTranscripts = transcriptionService?.getTranscripts() || [];
-      const transcriptElements = document.querySelectorAll('[data-transcript]');
-      const displayedTexts = Array.from(transcriptElements).map(el => el.textContent || '');
+    if (transcriptionService) {
+      transcriptionService.stop();
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Combine all possible transcript sources
-      const allTranscripts = [
-        ...new Set([
-          ...transcripts,
-          ...serviceTranscripts,
-          ...displayedTexts
-        ])
-      ].filter(Boolean);
-
-      if (allTranscripts.length > 0 && currentMeeting?.id) {
-        // Try multiple methods to save
-        const socket = socketService.getSocket();
-        
-        // Method 1: Socket emit with acknowledgment
-        if (socket?.connected) {
-          socket.emit('transcription-end', {
-            roomId: currentMeeting.id,
-            transcripts: allTranscripts
-          });
-        }
-
-        // Method 2: Direct API call
-        try {
-          await fetch('/api/meetings/transcripts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              meetingId: currentMeeting.id,
-              transcripts: allTranscripts
-            })
-          });
-        } catch (error) {
-          console.error('API save failed:', error);
+      const allTranscripts = transcriptionService.getTranscripts();
+      console.log('Final transcripts:', allTranscripts);
+  
+        // Only attempt to save if there are transcripts
+        if (allTranscripts.length > 0) {
+          const socket = socketService.getSocket();
+          
+          if (socket && socket.connected) {
+            try {
+              console.log('Saving transcripts...');
+              
+              await new Promise<void>((resolve, reject) => {
+                socket.emit('save-meeting-transcripts', {
+                  meetingId: peerId,
+                  transcripts: allTranscripts
+                }, (response: { success: boolean, error?: string }) => {
+                  console.log('Save Transcript Response:', response);
+                  
+                  if (response.success) {
+                    resolve();
+                  } else {
+                    reject(new Error(response.error || 'Failed to save transcripts'));
+                  }
+                });
+  
+                // Add a timeout
+                setTimeout(() => {
+                  reject(new Error('Transcript save timeout'));
+                }, 10000);
+              });
+  
+              console.log('Transcripts saved successfully');
+            } catch (error) {
+              console.error('Failed to save transcripts:', error);
+              // Optionally, save transcripts locally or implement a retry mechanism
+            }
+          } else {
+            console.error('Socket not connected', {
+              socket: !!socket,
+              connected: socket?.connected
+            });
+          }
         }
       }
 
-      // Clean up and end meeting
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
 
-      if (currentMeeting?.id) {
-        await endMeeting(currentMeeting.id, true);
-      }
-    } catch (error) {
-      console.error('Error during call end:', error);
+      const meetingId = currentMeeting?.id || `meeting-${peerId}`;
+      await endMeeting(meetingId, false);
+
+      setLocalStream(null);
+      setParticipants([]);
+      setTranscriptionService(null);
+      setIsTranscribing(false);
+
       router.push('/dashboard');
+    } catch (error) {
+      console.error('Error ending meeting:', error);
     } finally {
       isEndingRef.current = false;
     }
@@ -245,6 +254,26 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     };
   }, []);
 
+  const handleStartRecording = async () => {
+    if (!localStream) return;
+    const started = await recordingService.startRecording(localStream);
+    if (started) {
+      setIsRecording(true);
+    }
+  };
+
+  const handleStopRecording = async () => {
+    const blob = await recordingService.stopRecording();
+    if (blob) {
+      recordingService.downloadRecording(blob);
+    }
+    setIsRecording(false);
+  };
+
+  const handleToggleWhiteboard = () => {
+    setShowWhiteboard(!showWhiteboard);
+  };
+
   return (
     <div className="relative h-screen w-full">
       <div className="absolute inset-0 bg-[#1a1b1e]">
@@ -271,7 +300,8 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
           <VideoControls
-            onEndCall={handleEndCall}
+            localStream={localStream}
+            onEndCall={handleEndMeeting}
             onToggleAudio={handleToggleAudio}
             onToggleVideo={handleToggleVideo}
             isMuted={isMuted}
@@ -280,6 +310,14 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             onToggleChat={() => setShowChat(!showChat)}
             onToggleTranscription={handleToggleTranscription}
             isTranscribing={isTranscribing}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            isRecording={isRecording}
+            onToggleWhiteboard={handleToggleWhiteboard}
+            showWhiteboard={showWhiteboard}
+            stream={localStream}
+            currentMeeting={peerId}
+            endMeeting={handleEndMeeting}
           />
         </div>
 
@@ -292,6 +330,15 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               minimized={false}
               onMinimize={() => setShowChat(!showChat)}
               username="You"
+            />
+          </div>
+        )}
+
+        {showWhiteboard && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+            <Whiteboard 
+              isOpen={showWhiteboard} 
+              onClose={() => setShowWhiteboard(false)} 
             />
           </div>
         )}

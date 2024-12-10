@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mic, 
@@ -11,14 +11,13 @@ import {
   StopCircle, 
   FileText, 
   PieChart, 
-  FileQuestion, 
   MessageSquare, 
-  Users,
   ChevronUp,
   ChevronDown,
-  Palette
+  Edit2
 } from 'lucide-react';
-import { TranscriptionService } from '@/services/TranscriptionService';
+import { RecordingService } from '@/services/RecordingService';
+import { useRouter } from 'next/navigation';
 
 interface VideoControlsProps {
   localStream: MediaStream | null;
@@ -40,13 +39,16 @@ interface VideoControlsProps {
   isVideoOff: boolean;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
-  currentMeeting: any;
-  endMeeting: (meetingId: string) => Promise<void>;
+  currentMeeting: string;
+  endMeeting: (meetingId: string) => void;
   onToggleWhiteboard: () => void;
   showWhiteboard: boolean;
   onToggleTranscription: () => void;
   isTranscribing: boolean;
+  stream: MediaStream | null;
 }
+
+const recordingService = new RecordingService();
 
 export default function VideoControls({ 
   localStream, 
@@ -74,16 +76,42 @@ export default function VideoControls({
   showWhiteboard,
   onToggleTranscription,
   isTranscribing,
+  stream
 }: VideoControlsProps) {
   const [showMoreControls, setShowMoreControls] = useState(false);
+  const router = useRouter();
 
   const handleRecordingToggle = () => {
     if (!localStream) return;
-    isRecording ? onStopRecording() : onStartRecording();
+    if (isRecording) {
+      onStopRecording();
+    } else {
+      onStartRecording();
+    }
   };
 
-  const handleTranscriptionToggle = () => {
-    onToggleTranscription();
+  const handleEndMeeting = async () => {
+    try {
+      // Stop all tracks in the stream
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      // Stop recording if it's active
+      if (isRecording) {
+        await onStopRecording();
+      }
+
+      // Stop transcription if it's active
+      if (isTranscribing) {
+        onToggleTranscription();
+      }
+
+      // Call the endMeeting function from props
+      await onEndCall();
+    } catch (error) {
+      console.error('Error ending meeting:', error);
+    }
   };
 
   return (
@@ -102,24 +130,24 @@ export default function VideoControls({
               onClick={handleRecordingToggle}
               isActive={isRecording}
               icon={<StopCircle size={24} />}
-              label={isRecording ? "Stop" : "Record"}
+              label={isRecording ? "Stop Recording" : "Start Recording"}
               activeColor="bg-red-500 text-white"
             />
             <ControlButton
               onClick={onToggleWhiteboard}
               isActive={showWhiteboard}
-              icon={<Palette size={24} />}
+              icon={<Edit2 size={24} />}
               label="Whiteboard"
-              activeColor="bg-blue-500 text-white"
+              activeColor="bg-blue-500/80"
+              inactiveColor="bg-white/20"
             />
             <ControlButton
-              onClick={handleTranscriptionToggle}
+              onClick={onToggleTranscription}
               isActive={isTranscribing}
               icon={<FileText size={24} />}
               label="Transcription"
               activeColor="bg-green-500 text-white"
               inactiveColor="bg-gray-500/80 text-white"
-              disabled={false}
             />
           </motion.div>
         )}
@@ -158,10 +186,12 @@ export default function VideoControls({
         />
         <div className="w-px h-8 bg-white/20 mx-2" />
         <ControlButton
-          onClick={onEndCall}
+          onClick={handleEndMeeting}
           isActive={false}
           icon={<PhoneOff size={24} />}
-          inactiveColor="bg-red-500"
+          label="End Call"
+          activeColor="bg-red-500 text-white"
+          inactiveColor="bg-red-500 text-white"
         />
         <ControlButton
           onClick={onToggleChat}

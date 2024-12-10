@@ -1,17 +1,15 @@
 'use client';
-import { useMeeting } from '@/context/MeetingContext';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { FileText, Plus, Video } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Plus, FileText } from 'lucide-react';
 
 interface Meeting {
   id: string;
   title: string;
   createdAt: string;
-  status: string;
   hasSummary: boolean;
+  status: string;
 }
 
 export default function DashboardPage() {
@@ -25,7 +23,10 @@ export default function DashboardPage() {
         const response = await fetch('/api/meetings/recent');
         if (!response.ok) throw new Error('Failed to fetch meetings');
         const data = await response.json();
-        setRecentMeetings(data);
+        setRecentMeetings(data.map((meeting: any) => ({
+          ...meeting,
+          hasSummary: Boolean(meeting.hasSummary)
+        })));
       } catch (error) {
         console.error('Error fetching recent meetings:', error);
       } finally {
@@ -76,15 +77,19 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      {meeting.hasSummary && (
-                        <Link
-                          href={`/meetings/${meeting.id}/summaries`}
-                          className="flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm"
-                        >
-                          <FileText className="w-4 h-4" />
-                          View Summary
-                        </Link>
-                      )}
+                      <Link
+                        href={`/meetings/${meeting.id}`}
+                        className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm"
+                      >
+                        Join Meeting
+                      </Link>
+                      <Link
+                        href={`/meetings/${meeting.id}/summaries`}
+                        className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm"
+                      >
+                        <FileText className="w-4 h-4" />
+                        View Summary
+                      </Link>
                     </div>
                   </div>
                 </div>

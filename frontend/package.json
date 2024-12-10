@@ -21,6 +21,7 @@
     "framer-motion": "^11.13.1",
     "lucide-react": "^0.464.0",
     "mongodb": "^6.11.0",
+    "mongoose": "^8.8.4",
     "next": "15.0.3",
     "next-auth": "^4.24.10",
     "openai": "^4.75.0",

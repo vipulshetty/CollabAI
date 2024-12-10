@@ -67,73 +67,11 @@ export class TranscriptionService {
   }
 
   private handleError(event: SpeechRecognitionErrorEvent) {
-    console.log('Speech recognition error:', event.error, 'Details:', {
+    console.error('Speech recognition error:', {
+      error: event.error,
       isTranscribing: this.isTranscribing,
-      retryCount: this.retryCount,
-      timestamp: new Date().toISOString()
+      retryCount: this.retryCount
     });
-    
-    switch (event.error) {
-      case 'no-speech':
-        if (this.retryCount > 2) {
-          console.log('Multiple no-speech errors detected, checking microphone...');
-          this.checkMicrophoneActivity();
-        }
-        return;
-        
-      case 'network':
-        console.log('Network error detected, attempting reconnect...');
-        this.handleReconnect();
-        break;
-        
-      case 'aborted':
-      case 'audio-capture':
-      case 'not-allowed':
-        console.log(`Critical error: ${event.error}, attempting recovery...`);
-        if (this.isTranscribing) {
-          this.handleReconnect();
-        }
-        break;
-        
-      default:
-        console.warn('Unhandled speech recognition error:', event.error);
-        this.socket.emit('transcription-error', {
-          roomId: this.roomId,
-          error: event.error,
-          timestamp: Date.now()
-        });
-    }
-  }
-
-  private async checkMicrophoneActivity() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      const microphone = audioContext.createMediaStreamSource(stream);
-      microphone.connect(analyser);
-      
-      analyser.fftSize = 256;
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
-      const checkAudio = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const audioLevel = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        console.log('Current audio level:', audioLevel);
-        
-        if (audioLevel < 10) {
-          console.warn('Low audio levels detected. Please check your microphone.');
-        }
-      };
-
-      setTimeout(() => {
-        checkAudio();
-        stream.getTracks().forEach(track => track.stop());
-        audioContext.close();
-      }, 3000);
-    } catch (error) {
-      console.error('Error checking microphone:', error);
-    }
   }
 
   private handleEnd() {
@@ -142,27 +80,25 @@ export class TranscriptionService {
         this.retryCount++;
         this.start();
       }, this.retryDelay * this.retryCount);
-    } else if (this.retryCount >= this.maxRetries) {
-      this.socket.emit('transcription-status', {
-        roomId: this.roomId,
-        status: 'failed',
-        error: 'Max retries reached'
-      });
     }
   }
 
   private handleResult(event: SpeechRecognitionEvent) {
     const result = event.results[event.results.length - 1];
-    const transcript = result[0].transcript;
+    const transcript = result[0].transcript.trim();
 
-    if (result.isFinal && this.isConnected) {
+    if (result.isFinal && transcript) {
       console.log('Final Transcript:', transcript);
       this.transcripts.push(transcript);
-      this.socket.emit('transcription', {
-        roomId: this.roomId,
-        transcript: transcript.trim(),
-        timestamp: Date.now()
-      });
+      
+      // Emit transcript immediately
+      if (this.socket && this.socket.connected) {
+        this.socket.emit('transcription', {
+          roomId: this.roomId,
+          transcript: transcript,
+          timestamp: Date.now()
+        });
+      }
     }
   }
 
@@ -194,5 +130,40 @@ export class TranscriptionService {
 
   public getTranscripts(): string[] {
     return [...this.transcripts];
+  }
+
+  public clearTranscripts() {
+    this.transcripts = [];
+  }
+
+  // New method for saving transcripts
+  public saveTranscripts() {
+    return new Promise<{ success: boolean; error?: string }>((resolve, reject) => {
+      const transcripts = this.getTranscripts();
+      
+      console.log('Attempting to save transcripts:', transcripts);
+
+      if (transcripts.length === 0) {
+        console.log('No transcripts to save');
+        resolve({ success: true });
+        return;
+      }
+
+      this.socket.emit('save-meeting-transcripts', {
+        meetingId: this.roomId,
+        transcripts: transcripts
+      }, (response: { success: boolean; error?: string; transcriptId?: string }) => {
+        console.log('Transcript save response:', response);
+
+        if (response.success) {
+          console.log('Transcripts saved successfully');
+          this.clearTranscripts();
+          resolve(response);
+        } else {
+          console.error('Failed to save transcripts:', response.error);
+          reject(response);
+        }
+      });
+    });
   }
 }

@@ -1,113 +1,198 @@
-export function handleMeetingSummary(io: Server, socket: Socket) {
-  // Store transcripts
-  socket.on('transcription-end', async (data: { roomId: string, transcripts: string[] }, callback: (response: { success: boolean }) => void) => {
-    try {
-      console.log('Received transcription-end event:', {
-        roomId: data.roomId,
-        transcriptCount: data.transcripts.length,
-        socketId: socket.id,
-        user: socket.user?.email
-      });
+import { OpenAI } from 'openai';
+import { clientPromise } from '../../lib/mongodb';
 
-      const client = await clientPromise;
-      const db = client.db('collabai');
-      
-      // Normalize meeting ID format
-      const meetingId = data.roomId.replace('meeting-', '');
-      const displayId = `meeting-${meetingId}`;
-      
-      console.log('Looking for meeting with ID:', displayId);
-      
-      const meeting = await db.collection('meetings').findOne({
-        id: displayId
-      });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
-      if (!meeting) {
-        console.error('Meeting not found:', {
-          searchId: displayId,
-          originalId: data.roomId
-        });
-        return callback({ success: false });
-      }
-
-      console.log('Found meeting:', {
-        id: meeting.id,
-        createdBy: meeting.createdBy
-      });
-
-      // Store transcripts
-      const transcriptDoc = await db.collection('transcripts').insertOne({
-        meetingId: displayId,
-        transcripts: data.transcripts,
-        timestamp: new Date(),
-        createdBy: socket.user?.email || meeting.createdBy
-      });
-
-      console.log('Stored transcripts:', {
-        id: transcriptDoc.insertedId,
-        count: data.transcripts.length
-      });
-
-      // Update meeting
-      await db.collection('meetings').updateOne(
-        { id: displayId },
-        { 
-          $set: {
-            hasTranscripts: true,
-            lastTranscriptUpdate: new Date(),
-            transcriptCount: data.transcripts.length
-          }
+async function generateMeetingSummary(transcripts: string[]): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional meeting summarizer. Create a concise summary of the meeting transcripts provided."
+        },
+        {
+          role: "user",
+          content: `Please summarize these meeting transcripts:\n${transcripts.join('\n')}`
         }
-      );
-      
-      console.log('Successfully updated meeting with transcript info');
-      callback({ success: true });
-    } catch (error) {
-      console.error('Error storing transcripts:', error);
-      callback({ success: false });
-    }
-  });
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
 
-  // Generate summary on demand
-  socket.on('generate-summary', async (data: { roomId: string }) => {
-    try {
-      const client = await clientPromise;
-      const db = client.db('collabai');
-      
-      const transcriptDoc = await db.collection('transcripts')
-        .findOne({ roomId: data.roomId, summarized: false });
-      
-      if (transcriptDoc) {
-        const summaryService = new MeetingSummaryService(socket, data.roomId);
-        const summary = await summaryService.generateSummary(transcriptDoc.transcripts);
-        
-        if (summary) {
-          await db.collection('summaries').insertOne({
-            roomId: data.roomId,
-            summary: summary.summary,
-            keyPoints: summary.keyPoints,
-            actionItems: summary.actionItems,
-            timestamp: new Date(),
-            createdBy: socket.user?.email
-          });
+    return response.choices[0].message.content || 'No summary generated.';
+  } catch (error) {
+    console.error('Error generating summary:', error);
+    throw error;
+  }
+}
 
-          await db.collection('transcripts')
-            .updateOne(
-              { _id: transcriptDoc._id },
-              { $set: { summarized: true } }
-            );
 
-          socket.emit('meeting-summary', {
-            summary: summary.summary,
-            keyPoints: summary.keyPoints,
-            actionItems: summary.actionItems,
-            timestamp: Date.now()
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      socket.emit('summary-error', { message: 'Failed to generate summary' });
-    }
-  });
-} 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+ 
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+ 
