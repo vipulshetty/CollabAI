@@ -1,14 +1,17 @@
-'use client';
-import { SessionProvider } from 'next-auth/react';
 import './globals.css';
+import { Providers } from './providers';
+import { getServerSession } from 'next-auth';
+import { authConfig } from '@/lib/auth/auth-config';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authConfig);
+  
   return (
     <html lang="en">
-      <body>
-        <SessionProvider>
+      <body className="bg-gray-50">
+        <Providers session={session}>
           {children}
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

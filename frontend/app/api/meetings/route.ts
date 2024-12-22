@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authConfig } from '@/lib/auth/auth-config';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET() {
   try {
@@ -10,57 +15,34 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const client = await clientPromise;
-    const db = client.db('collabai');
-    
-    const meetings = await db.collection('meetings')
-      .aggregate([
-        {
-          $match: {
-            $or: [
-              { createdBy: session.user.email },
-              { participants: session.user.email }
-            ],
-            status: { $in: ['ended', 'active'] }
-          }
-        },
-        {
-          $lookup: {
-            from: 'transcripts',
-            localField: '_id',
-            foreignField: 'meetingId',
-            as: 'transcripts'
-          }
-        },
-        {
-          $lookup: {
-            from: 'summaries',
-            localField: '_id',
-            foreignField: 'meetingId',
-            as: 'summaries'
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            id: 1,
-            title: 1,
-            status: 1,
-            date: 1,
-            createdBy: 1,
-            participants: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            hasTranscripts: { $gt: [{ $size: '$transcripts' }, 0] },
-            hasSummary: { $gt: [{ $size: '$summaries' }, 0] }
-          }
-        }
-      ]).toArray();
+    const { data: meetings, error } = await supabase
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        scheduled_date,
+        created_at,
+        status,
+        created_by,
+        participants,
+        meeting_url,
+        description
+      `)
+      .or(`created_by.eq.${session.user.email},participants.cs.["${session.user.email}"]`)
+      .order('created_at', { ascending: false });
 
-    return NextResponse.json(meetings);
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ meetings: meetings || [] });
   } catch (error) {
-    console.error('Error fetching meetings:', error);
-    return NextResponse.json({ error: 'Failed to fetch meetings' }, { status: 500 });
+    console.error('Error in GET /api/meetings:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
 
@@ -71,25 +53,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const data = await request.json();
-    const client = await clientPromise;
-    const db = client.db('collabai');
+    const body = await request.json();
+    const { title, status, scheduled_date } = body;
 
-    const meeting = {
-      ...data,
-      id: `meeting-${new Date().getTime()}`,
-      createdBy: session.user.email,
-      participants: [session.user.email],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      status: data.status || 'active'
-    };
+    if (!title) {
+      return NextResponse.json(
+        { error: 'Meeting title is required' },
+        { status: 400 }
+      );
+    }
 
-    const result = await db.collection('meetings').insertOne(meeting);
+    const { data: meeting, error } = await supabase
+      .from('meetings')
+      .insert({
+        title,
+        status,
+        scheduled_date: scheduled_date || new Date().toISOString(),
+        created_by: session.user.email,
+        participants: [session.user.email]
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating meeting:', error);
+      return NextResponse.json(
+        { error: 'Failed to create meeting' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ meeting });
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ error: 'Failed to create meeting' }, { status: 500 });
+    console.error('Error in POST /api/meetings:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
-} 
+}

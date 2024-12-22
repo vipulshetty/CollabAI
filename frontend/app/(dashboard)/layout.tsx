@@ -2,16 +2,16 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Video, BarChart2, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { Video, BarChart2, Calendar, Users, Settings, LogOut, PieChart } from 'lucide-react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
-import { MeetingProvider } from '@/context/MeetingContext';
+import { MeetingProvider } from '@/contexts/MeetingContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      router.push('/auth/signin');
+      useRouter().push('/auth/signin');
     }
   });
   const router = useRouter();
@@ -30,12 +30,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const navItems = [
-    { href: '/dashboard', icon: <BarChart2 className="w-5 h-5" />, label: 'Dashboard' },
-    { href: '/meetings/create', icon: <Video className="w-5 h-5" />, label: 'New Meeting' },
-    { href: '/calendar', icon: <Calendar className="w-5 h-5" />, label: 'Calendar' },
-  ];
-
   return (
     <MeetingProvider>
       <div className="min-h-screen bg-gray-50">
@@ -48,11 +42,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span className="ml-2 font-semibold text-xl">CollabAI</span>
                 </Link>
                 <div className="hidden md:flex ml-10 space-x-8">
-                  {navItems.map((item) => (
+                  {[
+                    { href: '/dashboard', icon: <BarChart2 className="w-5 h-5" />, label: 'Dashboard' },
+                    { href: '/meetings/create', icon: <Video className="w-5 h-5" />, label: 'New Meeting' },
+                    { href: '/meetings/upcoming', icon: <Calendar className="w-5 h-5" />, label: 'Upcoming' },
+                    { href: '/analytics', icon: <PieChart className="w-5 h-5" />, label: 'Analytics' },
+                  ].map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center text-gray-600 hover:text-blue-500"
+                      className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-500"
                     >
                       {item.icon}
                       <span className="ml-2">{item.label}</span>
@@ -60,22 +59,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   ))}
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-gray-700">{session?.user?.name}</span>
-                <button
-                  onClick={() => signOut()}
-                  className="flex items-center text-gray-600 hover:text-red-500"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
+
+              <div className="flex items-center">
+                {session?.user?.email && (
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-600">{session.user.email}</span>
+                    <button
+                      onClick={() => signOut()}
+                      className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-red-500"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span className="ml-2">Sign Out</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </nav>
-        <main className="max-w-7xl mx-auto py-6 px-4 mt-16">
-          {children}
+
+        <main className="pt-16">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            {children}
+          </div>
         </main>
       </div>
     </MeetingProvider>
   );
-} 
+}

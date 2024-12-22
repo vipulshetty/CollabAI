@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useMeeting } from '@/context/MeetingContext';
+import { useMeeting } from '@/contexts/MeetingContext';
 import { socketService } from '@/services/socketService';
 
 interface SummaryData {
@@ -117,4 +117,4 @@ export default function PastMeetingSummaries({ roomId, realtimeSummaries = [] }:
       ))}
     </div>
   );
-} 
+}

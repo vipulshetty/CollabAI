@@ -1,5 +1,5 @@
 'use client';
-import { useMeeting } from '@/context/MeetingContext';
+import { useMeeting } from '@/contexts/MeetingContext';
 
 export default function ParticipantList() {
   const { participants = [] } = useMeeting();
@@ -17,4 +17,4 @@ export default function ParticipantList() {
       </div>
     </div>
   );
-} 
+}

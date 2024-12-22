@@ -1,60 +1,77 @@
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { FileText, Video } from 'lucide-react';
+'use client';
 
-interface RecentMeetingProps {
-  meetings: Array<{
-    id: string;
-    title: string;
-    date: string;
-    hasSummary?: boolean;
-  }>;
+import { FC } from 'react';
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { Meeting } from '@/types/meeting';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+interface RecentMeetingsProps {
+  meetings: Meeting[];
 }
 
-export default function RecentMeetings({ meetings }: RecentMeetingProps) {
-  const router = useRouter();
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return 'Date not available';
+  try {
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    return formatDistanceToNow(date, { addSuffix: true });
+  } catch (error) {
+    return 'Invalid date';
+  }
+};
 
-  const handleJoinMeeting = (meetingId: string) => {
-    router.push(`/meetings/${meetingId}`);
-  };
-
-  const handleViewSummary = (meetingId: string) => {
-    router.push(`/meetings/${meetingId}/summaries`);
-  };
-
+const RecentMeetings: FC<RecentMeetingsProps> = ({ meetings }) => {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {meetings.map((meeting) => (
-        <motion.div
-          key={meeting.id}
-          className="bg-white p-4 rounded-lg shadow-md"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="font-semibold">{meeting.title}</h3>
-            <span className="text-sm text-gray-500">{meeting.date}</span>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={() => handleJoinMeeting(meeting.id)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Video size={16} />
-              <span>Join</span>
-            </button>
-            {meeting.hasSummary && (
-              <button
-                onClick={() => handleViewSummary(meeting.id)}
-                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent Meetings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {meetings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recent meetings</p>
+          ) : (
+            meetings.map((meeting) => (
+              <div
+                key={meeting.id}
+                className="flex items-center justify-between space-x-4"
               >
-                <FileText size={16} />
-                <span>View Summary</span>
-              </button>
-            )}
-          </div>
-        </motion.div>
-      ))}
-    </div>
+                <div className="space-y-1">
+                  <Link
+                    href={`/meetings/${meeting.id}`}
+                    className="font-medium hover:underline"
+                  >
+                    {meeting.title}
+                  </Link>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm text-muted-foreground">
+                      {formatDate(meeting.endTime)}
+                    </p>
+                    <Badge variant="secondary">
+                      {meeting.participants?.length || 0} participants
+                    </Badge>
+                  </div>
+                </div>
+                {meeting.recordingUrl && (
+                  <Link
+                    href={`/meetings/${meeting.id}/recording`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View Recording
+                  </Link>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
-} 
+};
+
+export default RecentMeetings;

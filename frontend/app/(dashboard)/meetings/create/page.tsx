@@ -1,111 +1,165 @@
 'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Video, Calendar } from 'lucide-react';
-import { useMeeting } from '@/context/MeetingContext';
 
 export default function CreateMeetingPage() {
   const router = useRouter();
-  const { startMeeting, scheduleMeeting } = useMeeting();
   const [title, setTitle] = useState('');
-  const [scheduledTime, setScheduledTime] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [meetingType, setMeetingType] = useState<'instant' | 'scheduled'>('instant');
 
-  const handleStartMeeting = async () => {
+  const handleCreateMeeting = async () => {
     try {
       setIsLoading(true);
-      if (!title) {
-        alert('Please enter a meeting title');
+      setError(null);
+      
+      if (!title.trim()) {
+        setError('Please enter a meeting title');
         return;
       }
-      console.log('Starting meeting with title:', title);
-      const meetingId = await startMeeting(title);
-      console.log('Meeting created with ID:', meetingId);
-      router.push(`/meetings/join/${meetingId}`);
-    } catch (error) {
-      console.error('Error starting meeting:', error);
-      alert('Failed to start meeting. Please try again.');
+
+      if (meetingType === 'scheduled' && !scheduledDate) {
+        setError('Please select a meeting date and time');
+        return;
+      }
+
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          status: meetingType === 'instant' ? 'scheduled' : 'scheduled',
+          scheduled_date: meetingType === 'instant' 
+            ? new Date().toISOString() 
+            : new Date(scheduledDate).toISOString(),
+          meeting_url: meetingType === 'instant' 
+            ? `/video-call/${Date.now()}` // Generate a unique URL for instant meetings
+            : null
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create meeting');
+      }
+
+      const { meeting } = await response.json();
+
+      if (meetingType === 'instant') {
+        // For instant meetings, redirect to the video call page
+        router.push(`/meetings/${meeting.id}/video-call`);
+      } else {
+        // For scheduled meetings, go back to dashboard
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      console.error('Error creating meeting:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create meeting. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleScheduleMeeting = async () => {
-    if (!title || !scheduledTime) {
-      alert('Please fill in all fields');
-      return;
-    }
-    scheduleMeeting(title, scheduledTime);
-    await router.push('/dashboard');
-  };
-
   return (
-    <div className="max-w-2xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-md p-8"
-      >
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Create New Meeting</h1>
-        
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Meeting Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg"
-              placeholder="Team Sync"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Schedule For Later
-            </label>
-            <input
-              type="datetime-local"
-              value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg"
-            />
-          </div>
+    <div className="container mx-auto px-4 py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Create New Meeting</CardTitle>
+          <CardDescription>
+            Start an instant meeting or schedule one for later
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="flex space-x-4">
+              <Button
+                variant={meetingType === 'instant' ? 'default' : 'outline'}
+                onClick={() => setMeetingType('instant')}
+                className="flex-1"
+              >
+                <Video className="mr-2 h-4 w-4" />
+                Instant Meeting
+              </Button>
+              <Button
+                variant={meetingType === 'scheduled' ? 'default' : 'outline'}
+                onClick={() => setMeetingType('scheduled')}
+                className="flex-1"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Schedule Meeting
+              </Button>
+            </div>
 
-          <div className="flex gap-4 pt-4">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleStartMeeting}
-              className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center justify-center"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-t-4 border-b-4 border-blue-500"></div>
-              ) : (
-                <>
-                  <Video className="w-5 h-5 mr-2" />
-                  Start Now
-                </>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Meeting Title</Label>
+                <Input
+                  id="title"
+                  placeholder="Enter meeting title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Input
+                  id="description"
+                  placeholder="Enter meeting description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              {meetingType === 'scheduled' && (
+                <div className="space-y-2">
+                  <Label htmlFor="scheduledDate">Date and Time</Label>
+                  <Input
+                    id="scheduledDate"
+                    type="datetime-local"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                  />
+                </div>
               )}
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleScheduleMeeting}
-              className="flex-1 bg-gray-100 text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-200 flex items-center justify-center"
-              disabled={!title || !scheduledTime}
-            >
-              <Calendar className="w-5 h-5 mr-2" />
-              Schedule
-            </motion.button>
+
+              <Button
+                className="w-full"
+                onClick={handleCreateMeeting}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  'Creating...'
+                ) : meetingType === 'instant' ? (
+                  'Start Meeting'
+                ) : (
+                  'Schedule Meeting'
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </CardContent>
+      </Card>
     </div>
   );
-} 
+}

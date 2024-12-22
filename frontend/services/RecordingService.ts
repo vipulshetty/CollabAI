@@ -1,4 +1,4 @@
-export class RecordingService {
+class RecordingService {
   private mediaRecorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
 
@@ -21,7 +21,7 @@ export class RecordingService {
     }
   }
 
-  async stopRecording(): Promise<Blob | null> {
+  stopRecording(): Promise<Blob | null> {
     return new Promise((resolve) => {
       if (!this.mediaRecorder) {
         resolve(null);
@@ -29,24 +29,20 @@ export class RecordingService {
       }
 
       this.mediaRecorder.onstop = () => {
-        const recordedBlob = new Blob(this.recordedChunks, { type: 'video/webm' });
+        const blob = new Blob(this.recordedChunks, {
+          type: 'video/webm'
+        });
         this.recordedChunks = [];
-        resolve(recordedBlob);
+        resolve(blob);
       };
 
       this.mediaRecorder.stop();
     });
   }
 
-  downloadRecording(blob: Blob) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    document.body.appendChild(a);
-    a.style.display = 'none';
-    a.href = url;
-    a.download = `recording-${new Date().toISOString()}.webm`;
-    a.click();
-    URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+  isRecording(): boolean {
+    return this.mediaRecorder?.state === 'recording';
   }
-} 
+}
+
+export default RecordingService;

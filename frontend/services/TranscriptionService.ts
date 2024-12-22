@@ -4,6 +4,8 @@ declare global {
   interface Window {
     SpeechRecognition: typeof SpeechRecognition;
     webkitSpeechRecognition: typeof SpeechRecognition;
+    mozSpeechRecognition: typeof SpeechRecognition;
+    msSpeechRecognition: typeof SpeechRecognition;
   }
 }
 
@@ -14,7 +16,7 @@ interface TranscriptionOptions {
 }
 
 export class TranscriptionService {
-  private recognition: SpeechRecognition;
+  private recognition: SpeechRecognition | null = null;
   private isTranscribing: boolean = false;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private transcripts: string[] = [];
@@ -28,13 +30,7 @@ export class TranscriptionService {
     private roomId: string,
     private options: TranscriptionOptions = {}
   ) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      throw new Error('Speech recognition is not supported in this browser');
-    }
-
-    this.recognition = new SpeechRecognition();
-    this.setupRecognition();
+    this.initializeRecognition();
 
     // Monitor socket connection
     this.socket.on('connect', () => {
@@ -48,84 +44,276 @@ export class TranscriptionService {
     });
   }
 
+  private initializeRecognition() {
+    try {
+      // Try to get the SpeechRecognition constructor from different browser implementations
+      const SpeechRecognition = 
+        window.SpeechRecognition || 
+        window.webkitSpeechRecognition ||
+        window.mozSpeechRecognition ||
+        window.msSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        throw new Error('Speech recognition is not supported in this browser');
+      }
+
+      this.recognition = new SpeechRecognition();
+      this.setupRecognition();
+    } catch (error) {
+      console.error('Failed to initialize speech recognition:', error);
+      this.recognition = null;
+      
+      // Notify the socket about the initialization failure
+      if (this.socket && this.socket.connected) {
+        this.socket.emit('transcription-error', {
+          roomId: this.roomId,
+          error: 'Speech recognition initialization failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+  }
+
   private setupRecognition() {
+    if (!this.recognition) return;
+
+    // Configure recognition settings
     this.recognition.lang = this.options.language || 'en-US';
     this.recognition.continuous = this.options.continuous ?? true;
     this.recognition.interimResults = this.options.interimResults ?? true;
 
+    // Handle recognition start
     this.recognition.onstart = () => {
       console.log('Transcription started');
+      this.isTranscribing = true;
       this.socket.emit('transcription-status', { 
         roomId: this.roomId, 
         status: 'started' 
       });
     };
 
+    // Handle recognition errors
     this.recognition.onerror = this.handleError.bind(this);
     this.recognition.onend = this.handleEnd.bind(this);
     this.recognition.onresult = this.handleResult.bind(this);
   }
 
   private handleError(event: SpeechRecognitionErrorEvent) {
-    console.error('Speech recognition error:', {
+    const errorDetails = {
       error: event.error,
+      message: event.message || 'No error message available',
       isTranscribing: this.isTranscribing,
-      retryCount: this.retryCount
-    });
+      retryCount: this.retryCount,
+      timestamp: new Date().toISOString()
+    };
+
+    console.error('Speech recognition error:', errorDetails);
+
+    // Notify the socket about the error
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('transcription-error', {
+        roomId: this.roomId,
+        ...errorDetails
+      });
+    }
+
+    // Handle specific error types
+    switch (event.error) {
+      case 'not-allowed':
+        console.error('Microphone access denied');
+        this.stop();
+        break;
+      case 'no-speech':
+        console.log('No speech detected, continuing...');
+        break;
+      case 'network':
+        console.error('Network error occurred');
+        this.attemptReconnect();
+        break;
+      case 'aborted':
+        console.log('Speech recognition aborted');
+        if (this.isTranscribing) {
+          this.attemptReconnect();
+        }
+        break;
+      case 'audio-capture':
+        console.error('No microphone was found or microphone is not working');
+        this.stop();
+        break;
+      case 'service-not-allowed':
+        console.error('Speech recognition service not allowed');
+        this.stop();
+        break;
+      default:
+        if (this.isTranscribing) {
+          this.attemptReconnect();
+        }
+    }
+  }
+
+  private attemptReconnect() {
+    if (this.retryCount < this.maxRetries) {
+      console.log(`Attempting to reconnect (${this.retryCount + 1}/${this.maxRetries})`);
+      
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+      }
+
+      this.reconnectTimeout = setTimeout(() => {
+        this.retryCount++;
+        this.restart();
+      }, this.retryDelay * this.retryCount);
+    } else {
+      console.error('Max retry attempts reached, stopping transcription');
+      this.stop();
+      
+      // Notify about max retries reached
+      if (this.socket && this.socket.connected) {
+        this.socket.emit('transcription-error', {
+          roomId: this.roomId,
+          error: 'max_retries_reached',
+          message: 'Maximum retry attempts reached'
+        });
+      }
+    }
   }
 
   private handleEnd() {
+    console.log('Speech recognition ended');
+    
     if (this.isTranscribing && this.retryCount < this.maxRetries) {
-      setTimeout(() => {
-        this.retryCount++;
-        this.start();
-      }, this.retryDelay * this.retryCount);
+      console.log('Recognition ended while transcribing, attempting to reconnect...');
+      this.attemptReconnect();
+    } else {
+      this.isTranscribing = false;
+      this.socket.emit('transcription-status', {
+        roomId: this.roomId,
+        status: 'ended'
+      });
     }
   }
 
   private handleResult(event: SpeechRecognitionEvent) {
-    const result = event.results[event.results.length - 1];
-    const transcript = result[0].transcript.trim();
+    try {
+      const result = event.results[event.results.length - 1];
+      const transcript = result[0].transcript.trim();
 
-    if (result.isFinal && transcript) {
-      console.log('Final Transcript:', transcript);
-      this.transcripts.push(transcript);
+      if (result.isFinal && transcript) {
+        console.log('Final Transcript:', {
+          transcript,
+          confidence: result[0].confidence,
+          total: this.transcripts.length + 1
+        });
+        
+        this.transcripts.push(transcript);
+        
+        // Emit transcript if socket is connected
+        if (this.isConnected && this.socket.connected) {
+          this.socket.emit('transcription', {
+            roomId: this.roomId,
+            transcript: transcript,
+            timestamp: Date.now(),
+            confidence: result[0].confidence
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error handling transcription result:', error);
       
-      // Emit transcript immediately
+      // Notify about result handling error
       if (this.socket && this.socket.connected) {
-        this.socket.emit('transcription', {
+        this.socket.emit('transcription-error', {
           roomId: this.roomId,
-          transcript: transcript,
-          timestamp: Date.now()
+          error: 'result_handling_error',
+          message: error instanceof Error ? error.message : 'Unknown error processing transcription result'
         });
       }
     }
   }
 
   public start() {
+    if (!this.recognition) {
+      console.error('Speech recognition not initialized');
+      return {
+        success: false,
+        error: 'Speech recognition not initialized'
+      };
+    }
+
     if (!this.isTranscribing) {
-      this.isTranscribing = true;
-      this.retryCount = 0;
       try {
+        this.retryCount = 0;
         this.recognition.start();
+        this.isTranscribing = true;
+        return { success: true };
       } catch (error) {
         console.error('Error starting transcription:', error);
+        this.attemptReconnect();
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to start transcription'
+        };
       }
     }
+
+    return { 
+      success: false, 
+      error: 'Transcription is already running' 
+    };
   }
 
-  public stop() {
-    this.isTranscribing = false;
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+  public async stop() {
+    if (this.recognition && this.isTranscribing) {
+      try {
+        // Save transcripts before stopping
+        if (this.transcripts.length > 0) {
+          console.log('Stopping transcription with transcripts:', {
+            count: this.transcripts.length,
+            transcripts: this.transcripts
+          });
+          
+          try {
+            const result = await this.saveTranscripts();
+            console.log('Save transcripts result:', result);
+          } catch (error) {
+            console.error('Error saving transcripts:', error);
+          }
+        } else {
+          console.log('No transcripts to save');
+        }
+
+        this.recognition.stop();
+        this.isTranscribing = false;
+        this.retryCount = 0;
+        
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+        }
+
+        this.socket.emit('transcription-status', {
+          roomId: this.roomId,
+          status: 'stopped'
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error stopping transcription:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to stop transcription'
+        };
+      }
     }
 
-    try {
-      this.recognition.stop();
-    } catch (error) {
-      console.error('Error stopping transcription:', error);
-    }
+    return { success: true };
+  }
+
+  private restart() {
+    this.stop();
+    setTimeout(() => {
+      this.start();
+    }, 1000);
   }
 
   public getTranscripts(): string[] {
@@ -136,34 +324,49 @@ export class TranscriptionService {
     this.transcripts = [];
   }
 
-  // New method for saving transcripts
-  public saveTranscripts() {
-    return new Promise<{ success: boolean; error?: string }>((resolve, reject) => {
-      const transcripts = this.getTranscripts();
-      
-      console.log('Attempting to save transcripts:', transcripts);
+  public async saveTranscripts() {
+    try {
+      console.log('Saving transcripts:', {
+        roomId: this.roomId,
+        transcriptCount: this.transcripts.length,
+        transcripts: this.transcripts
+      });
 
-      if (transcripts.length === 0) {
-        console.log('No transcripts to save');
-        resolve({ success: true });
-        return;
+      const response = await fetch(`/api/meetings/${this.roomId}/transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcripts: this.transcripts
+        })
+      });
+
+      const data = await response.json();
+      console.log('Save transcripts response:', {
+        status: response.status,
+        ok: response.ok,
+        data
+      });
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save transcripts');
       }
 
-      this.socket.emit('save-meeting-transcripts', {
-        meetingId: this.roomId,
-        transcripts: transcripts
-      }, (response: { success: boolean; error?: string; transcriptId?: string }) => {
-        console.log('Transcript save response:', response);
-
-        if (response.success) {
-          console.log('Transcripts saved successfully');
-          this.clearTranscripts();
-          resolve(response);
-        } else {
-          console.error('Failed to save transcripts:', response.error);
-          reject(response);
-        }
+      return {
+        success: true,
+        transcriptId: data.id
+      };
+    } catch (error) {
+      console.error('Error saving transcripts:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       });
-    });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to save transcripts'
+      };
+    }
   }
 }

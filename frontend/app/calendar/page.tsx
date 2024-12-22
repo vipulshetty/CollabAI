@@ -2,9 +2,9 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Calendar from '@/components/Calendar';
-import { MeetingProvider, useMeeting } from '@/context/MeetingContext';
+import { MeetingProvider, useMeeting } from '@/contexts/MeetingContext';
 import { motion } from 'framer-motion';
-import { Video, Clock } from 'lucide-react';
+import { Video } from 'lucide-react';
 
 function CalendarContent() {
   const router = useRouter();
@@ -86,4 +86,4 @@ export default function CalendarPage() {
       <CalendarContent />
     </MeetingProvider>
   );
-} 
+}

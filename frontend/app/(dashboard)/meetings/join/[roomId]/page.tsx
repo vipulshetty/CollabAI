@@ -3,13 +3,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
-import { useMeeting } from '@/context/MeetingContext';
+import { useMeeting } from '@/contexts/MeetingContext';
 import VideoCall from '@/components/VideoCall';
 import ParticipantList from '@/components/ParticipantList';
 import MeetingTimer from '@/components/MeetingTimer';
 import ChatSystem from '@/components/ChatSystem';
 import TabButton from '@/components/TabButton';
-import { FileQuestion } from 'lucide-react';
 
 export default function MeetingRoomPage() {
   const params = useParams();
@@ -98,4 +97,4 @@ export default function MeetingRoomPage() {
       </main>
     </div>
   );
-} 
+}

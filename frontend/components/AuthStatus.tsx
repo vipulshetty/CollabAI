@@ -2,9 +2,19 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 export default function AuthStatus() {
   const { data: session, status } = useSession();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="fixed top-0 right-0 p-4 flex gap-4 items-center">
@@ -32,4 +42,4 @@ export default function AuthStatus() {
       )}
     </div>
   );
-} 
+}

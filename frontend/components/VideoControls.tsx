@@ -6,22 +6,24 @@ import {
   MicOff, 
   Video, 
   VideoOff, 
-  PhoneOff, 
-  Monitor, 
-  StopCircle, 
-  FileText, 
-  PieChart, 
-  MessageSquare, 
+  MonitorUp,
+  MonitorOff,
+  PhoneOff,
   ChevronUp,
   ChevronDown,
-  Edit2
+  MessageCircle,
+  Users,
+  BarChart2,
+  FileText,
+  CircleDot,
+  StopCircle,
+  Edit3,
+  Headphones
 } from 'lucide-react';
-import { RecordingService } from '@/services/RecordingService';
-import { useRouter } from 'next/navigation';
 
 interface VideoControlsProps {
   localStream: MediaStream | null;
-  onEndCall: () => void;
+  onEndCall: () => Promise<void>;
   onScreenShare: () => void;
   isScreenSharing: boolean;
   onStartRecording: () => void;
@@ -39,8 +41,6 @@ interface VideoControlsProps {
   isVideoOff: boolean;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
-  currentMeeting: string;
-  endMeeting: (meetingId: string) => void;
   onToggleWhiteboard: () => void;
   showWhiteboard: boolean;
   onToggleTranscription: () => void;
@@ -48,9 +48,7 @@ interface VideoControlsProps {
   stream: MediaStream | null;
 }
 
-const recordingService = new RecordingService();
-
-export default function VideoControls({ 
+const VideoControls = ({ 
   localStream, 
   onEndCall, 
   onScreenShare,
@@ -70,33 +68,16 @@ export default function VideoControls({
   isVideoOff,
   onToggleAudio,
   onToggleVideo,
-  currentMeeting,
-  endMeeting,
   onToggleWhiteboard,
   showWhiteboard,
   onToggleTranscription,
   isTranscribing,
   stream
-}: VideoControlsProps) {
+}: VideoControlsProps) => {
   const [showMoreControls, setShowMoreControls] = useState(false);
-  const router = useRouter();
 
-  const handleRecordingToggle = () => {
-    if (!localStream) return;
-    if (isRecording) {
-      onStopRecording();
-    } else {
-      onStartRecording();
-    }
-  };
-
-  const handleEndMeeting = async () => {
+  const handleEndCall = async () => {
     try {
-      // Stop all tracks in the stream
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
       // Stop recording if it's active
       if (isRecording) {
         await onStopRecording();
@@ -107,10 +88,14 @@ export default function VideoControls({
         onToggleTranscription();
       }
 
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Call the endMeeting function from props
       await onEndCall();
     } catch (error) {
       console.error('Error ending meeting:', error);
+      // Don't throw here, just log the error
     }
   };
 
@@ -118,92 +103,93 @@ export default function VideoControls({
     <motion.div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-4">
       <AnimatePresence>
         {showMoreControls && (
-          <motion.div className="bg-black/80 backdrop-blur-md rounded-2xl p-4 shadow-lg grid grid-cols-3 gap-3 mb-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="bg-black/80 backdrop-blur-md rounded-2xl p-4 shadow-lg grid grid-cols-3 gap-3 mb-4"
+          >
+            <ControlButton
+              onClick={onToggleChat}
+              isActive={showChat}
+              icon={<MessageCircle />}
+              label="Chat"
+            />
+            <ControlButton
+              onClick={onToggleBreakoutRooms}
+              isActive={showBreakoutRooms}
+              icon={<Users />}
+              label="Breakout"
+            />
             <ControlButton
               onClick={onToggleAnalytics}
               isActive={showAnalytics}
-              icon={<PieChart size={24} />}
+              icon={<BarChart2 />}
               label="Analytics"
-              activeColor="bg-indigo-100 text-indigo-700"
             />
             <ControlButton
-              onClick={handleRecordingToggle}
+              onClick={onToggleSummary}
+              isActive={showSummary}
+              icon={<FileText />}
+              label="Summary"
+            />
+            <ControlButton
+              onClick={isRecording ? onStopRecording : onStartRecording}
               isActive={isRecording}
-              icon={<StopCircle size={24} />}
-              label={isRecording ? "Stop Recording" : "Start Recording"}
-              activeColor="bg-red-500 text-white"
+              icon={isRecording ? <StopCircle /> : <CircleDot />}
+              label={isRecording ? "Stop" : "Record"}
             />
             <ControlButton
               onClick={onToggleWhiteboard}
               isActive={showWhiteboard}
-              icon={<Edit2 size={24} />}
-              label="Whiteboard"
-              activeColor="bg-blue-500/80"
-              inactiveColor="bg-white/20"
+              icon={<Edit3 />}
+              label="Board"
             />
             <ControlButton
               onClick={onToggleTranscription}
               isActive={isTranscribing}
-              icon={<FileText size={24} />}
-              label="Transcription"
-              activeColor="bg-green-500 text-white"
-              inactiveColor="bg-gray-500/80 text-white"
+              icon={<Headphones />}
+              label="Transcribe"
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main controls */}
-      <motion.div className="bg-black/80 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2 shadow-lg">
+      <motion.div className="bg-black/80 backdrop-blur-md rounded-2xl p-4 shadow-lg flex items-center gap-4">
         <ControlButton
           onClick={onToggleAudio}
           isActive={!isMuted}
-          icon={isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+          icon={isMuted ? <MicOff /> : <Mic />}
           activeColor="bg-white/20"
           inactiveColor="bg-red-500/80"
         />
         <ControlButton
           onClick={onToggleVideo}
           isActive={!isVideoOff}
-          icon={isVideoOff ? <VideoOff size={24} /> : <Video size={24} />}
+          icon={isVideoOff ? <VideoOff /> : <Video />}
           activeColor="bg-white/20"
           inactiveColor="bg-red-500/80"
         />
         <ControlButton
           onClick={onScreenShare}
           isActive={isScreenSharing}
-          icon={<Monitor size={24} />}
-          activeColor="bg-green-500/80"
-          inactiveColor="bg-white/20"
+          icon={isScreenSharing ? <MonitorOff /> : <MonitorUp />}
         />
-        <div className="w-px h-8 bg-white/20 mx-2" />
+        <ControlButton
+          onClick={handleEndCall}
+          isActive={false}
+          icon={<PhoneOff />}
+          inactiveColor="bg-red-500"
+        />
         <ControlButton
           onClick={() => setShowMoreControls(!showMoreControls)}
           isActive={showMoreControls}
-          icon={showMoreControls ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
-          activeColor="bg-white/30"
-          inactiveColor="bg-white/10"
-        />
-        <div className="w-px h-8 bg-white/20 mx-2" />
-        <ControlButton
-          onClick={handleEndMeeting}
-          isActive={false}
-          icon={<PhoneOff size={24} />}
-          label="End Call"
-          activeColor="bg-red-500 text-white"
-          inactiveColor="bg-red-500 text-white"
-        />
-        <ControlButton
-          onClick={onToggleChat}
-          isActive={showChat}
-          icon={<MessageSquare size={24} />}
-          activeColor="bg-blue-500/80"
-          inactiveColor="bg-white/20"
+          icon={showMoreControls ? <ChevronDown /> : <ChevronUp />}
         />
       </motion.div>
     </motion.div>
   );
-}
+};
 
 interface ControlButtonProps {
   onClick: () => void;
@@ -215,7 +201,7 @@ interface ControlButtonProps {
   disabled?: boolean;
 }
 
-function ControlButton({
+const ControlButton = ({
   onClick,
   isActive,
   icon,
@@ -223,19 +209,24 @@ function ControlButton({
   activeColor = "bg-white/20",
   inactiveColor = "bg-white/10",
   disabled = false
-}: ControlButtonProps) {
+}: ControlButtonProps) => {
   return (
-    <motion.button
+    <button
       onClick={onClick}
       disabled={disabled}
-      className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-colors duration-200
+      className={`
+        relative p-3 rounded-xl transition-all duration-200
         ${isActive ? activeColor : inactiveColor}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-opacity-80'}`}
-      whileHover={!disabled ? { scale: 1.05 } : {}}
-      whileTap={!disabled ? { scale: 0.95 } : {}}
+        hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed
+        flex flex-col items-center gap-1
+      `}
     >
       {icon}
-      {label && <span className="text-xs font-medium">{label}</span>}
-    </motion.button>
+      {label && (
+        <span className="text-xs font-medium opacity-80">{label}</span>
+      )}
+    </button>
   );
-}
+};
+
+export default VideoControls;

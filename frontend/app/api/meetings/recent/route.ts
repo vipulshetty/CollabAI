@@ -1,51 +1,58 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authConfig } from '@/lib/auth/auth-config';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET() {
   try {
     const session = await getServerSession(authConfig);
     if (!session?.user?.email) {
+      console.error('Unauthorized access attempt to recent meetings');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const client = await clientPromise;
-    const db = client.db('collabai');
-    
-    const meetings = await db.collection('meetings')
-      .find({
-        $or: [
-          { createdBy: session.user.email },
-          { participants: session.user.email }
-        ]
-      })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .toArray();
+    // Get recent meetings with transcript information
+    const { data: meetings, error } = await supabase
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        scheduled_date,
+        created_at,
+        status,
+        created_by,
+        participants,
+        meeting_url,
+        description
+      `)
+      .eq('created_by', session.user.email)
+      .order('created_at', { ascending: false })
+      .limit(6);
 
-    // Enhance meetings with summary and transcript info
-    const enhancedMeetings = await Promise.all(meetings.map(async (meeting) => {
-      const summary = await db.collection('summaries')
-        .findOne({ roomId: meeting._id.toString() });
-        
-      const transcript = await db.collection('transcripts')
-        .findOne({ roomId: meeting._id.toString() });
+    if (error) {
+      console.error('Error fetching recent meetings from Supabase:', error);
+      return NextResponse.json(
+        { error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
+    }
 
-      return {
-        id: meeting._id.toString(),
-        title: meeting.title,
-        createdAt: meeting.createdAt,
-        status: meeting.status,
-        participants: meeting.participants || [],
-        hasSummary: !!summary,
-        hasTranscripts: !!transcript
-      };
-    }));
+    if (!meetings) {
+      console.error('No meetings data returned from Supabase');
+      return NextResponse.json([], { status: 200 });
+    }
 
-    return NextResponse.json(enhancedMeetings);
+    return NextResponse.json(meetings);
   } catch (error) {
-    console.error('Error fetching recent meetings:', error);
-    return NextResponse.json({ error: 'Failed to fetch meetings' }, { status: 500 });
+    console.error('Error in GET /api/meetings/recent:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
-} 
+}
