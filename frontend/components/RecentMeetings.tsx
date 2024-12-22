@@ -6,6 +6,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { Meeting } from '@/types/meeting';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import MeetingTranscripts from './MeetingTranscripts';
 
 interface RecentMeetingsProps {
   meetings: Meeting[];
@@ -57,14 +59,16 @@ const RecentMeetings: FC<RecentMeetingsProps> = ({ meetings }) => {
                     </Badge>
                   </div>
                 </div>
-                {meeting.recordingUrl && (
-                  <Link
-                    href={`/meetings/${meeting.id}/recording`}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    View Recording
-                  </Link>
-                )}
+                <div className="flex items-center space-x-2">
+                  <MeetingTranscripts meetingId={meeting.id} />
+                  {meeting.recordingUrl && (
+                    <Link href={`/meetings/${meeting.id}/recording`}>
+                      <Button variant="outline" size="sm">
+                        View Recording
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </div>
             ))
           )}

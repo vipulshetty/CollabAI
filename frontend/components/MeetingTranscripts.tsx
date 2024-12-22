@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2 } from 'lucide-react';
 
 interface MeetingTranscriptsProps {
   meetingId: string;
@@ -24,69 +25,148 @@ const supabase = createClient(
 
 const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
   const [transcripts, setTranscripts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+
+  const fetchTranscripts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('meeting_transcripts')
+        .select('*')
+        .eq('meeting_id', meetingId)
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+      setTranscripts(data || []);
+      
+      // Set summary if any transcript has it
+      const existingSummary = data?.find(t => t.summary)?.summary;
+      if (existingSummary) {
+        setSummary(existingSummary);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch transcripts');
+    }
+  };
 
   useEffect(() => {
-    const fetchTranscripts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('meeting_transcripts')
-          .select('*')
-          .eq('meeting_id', meetingId)
-          .order('timestamp', { ascending: true });
+    if (open) {
+      fetchTranscripts();
 
-        if (error) throw error;
-        setTranscripts(data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch transcripts');
-      } finally {
-        setLoading(false);
+      // Subscribe to changes
+      const channel = supabase
+        .channel('meeting_transcripts_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'meeting_transcripts',
+            filter: `meeting_id=eq.${meetingId}`
+          },
+          () => {
+            fetchTranscripts();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+  }, [meetingId, open]);
+
+  const handleGenerateSummary = async () => {
+    if (summary) {
+      setOpen(true);
+      return;
+    }
+
+    try {
+      setIsGeneratingSummary(true);
+      setOpen(true);
+      const response = await fetch(`/api/meetings/${meetingId}/summary`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate summary');
       }
-    };
 
-    fetchTranscripts();
-  }, [meetingId]);
-
-  if (loading) return <div>Loading transcripts...</div>;
-  if (error) return <div>Error: {error}</div>;
+      const { summary: newSummary } = await response.json();
+      setSummary(newSummary);
+      
+      // Refresh transcripts to get updated summary
+      fetchTranscripts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate summary');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          View Transcripts
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleGenerateSummary}
+          disabled={isGeneratingSummary}
+        >
+          {isGeneratingSummary ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating Summary...
+            </>
+          ) : (
+            summary ? 'View Summary' : 'Generate Summary'
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Meeting Transcripts</DialogTitle>
+          <DialogTitle>Meeting Summary</DialogTitle>
           <DialogDescription>
-            View the transcripts and AI-generated summary of this meeting.
+            AI-generated summary of the meeting.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[400px] rounded-md border p-4">
-          {transcripts.map((transcript, index) => (
-            <div key={transcript.id} className="mb-6">
-              {transcript.summary && (
-                <div className="mb-4 rounded-lg bg-muted p-4">
-                  <h4 className="mb-2 font-semibold">AI Summary</h4>
-                  <p className="text-sm text-muted-foreground">{transcript.summary}</p>
-                </div>
-              )}
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-medium">{transcript.speaker}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(transcript.timestamp).toLocaleString()}
-                  </span>
-                </div>
-                <p className="whitespace-pre-wrap text-sm">{transcript.content}</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : error ? (
+            <p className="text-center text-destructive">{error}</p>
+          ) : !summary ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Generating summary...</span>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="rounded-lg bg-muted p-4">
+                <h4 className="mb-2 font-semibold">AI Summary</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary}</p>
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="mb-2 font-semibold">Meeting Transcripts</h4>
+                {transcripts.map((transcript) => (
+                  <div key={transcript.id} className="mb-4">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="text-sm font-medium">{transcript.speaker}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(transcript.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm">{transcript.content}</p>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-          {transcripts.length === 0 && (
-            <p className="text-center text-muted-foreground">No transcripts available</p>
           )}
         </ScrollArea>
       </DialogContent>

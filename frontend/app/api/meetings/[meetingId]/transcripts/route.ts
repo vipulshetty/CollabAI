@@ -2,14 +2,11 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authConfig } from '@/lib/auth/auth-config';
 import { createClient } from '@supabase/supabase-js';
-import { GeminiService } from '@/services/GeminiService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const geminiService = new GeminiService();
 
 export async function POST(
   request: Request,
@@ -61,15 +58,6 @@ export async function POST(
       );
     }
 
-    // Generate summary using Gemini
-    let summary = '';
-    try {
-      summary = await geminiService.generateSummary(transcripts);
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      // Continue without summary if generation fails
-    }
-
     // Save the transcripts
     const { data: transcript, error: transcriptError } = await supabase
       .from('meeting_transcripts')
@@ -78,7 +66,6 @@ export async function POST(
         content: transcripts.join('\n'),
         speaker: session.user.email,
         timestamp: new Date().toISOString(),
-        ...(summary ? { summary } : {})  // Only include summary if it exists
       })
       .select()
       .single();
@@ -94,8 +81,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: 'Transcripts saved successfully',
-      transcript,
-      summary
+      transcript
     });
   } catch (error) {
     console.error('Error saving transcripts:', error);
