@@ -3,7 +3,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Video, Users, Shield, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { signIn } from 'next-auth/react';
+import Link from 'next/link';
 
 const container = {
   hidden: { opacity: 0 },
@@ -28,7 +28,7 @@ export default function HomePage() {
     if (session) {
       router.push('/dashboard');
     } else {
-      signIn('google', { callbackUrl: '/dashboard' });
+      router.push('/auth/signup');
     }
   };
 
@@ -65,14 +65,15 @@ export default function HomePage() {
                   Dashboard
                 </motion.button>
               ) : (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
-                >
-                  Sign In
-                </motion.button>
+                <Link href="/auth/signin">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+                  >
+                    Sign In
+                  </motion.button>
+                </Link>
               )}
             </div>
           </div>
@@ -100,19 +101,11 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleGetStarted}
-                className="inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-lg text-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
               >
                 Get Started
-                <ArrowRight className="ml-2 h-5 w-5" />
+                <ArrowRight className="inline-block ml-2 w-5 h-5" />
               </motion.button>
-              <motion.a
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                href="#features"
-                className="inline-flex items-center justify-center border-2 border-blue-200 hover:border-blue-600 text-blue-600 px-8 py-3 rounded-lg text-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300"
-              >
-                Learn More
-              </motion.a>
             </div>
 
             {/* Quick Benefits */}

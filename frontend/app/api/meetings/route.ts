@@ -54,7 +54,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { title, status, scheduled_date } = body;
+    console.log('Received meeting creation request:', body);
+
+    const { title, description, status, scheduled_date, meeting_url } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -63,31 +65,44 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log('Creating meeting with data:', {
+      title,
+      status: status || 'scheduled',
+      scheduled_date,
+      created_by: session.user.email,
+      participants: [session.user.email],
+      meeting_url,
+      description
+    });
+
     const { data: meeting, error } = await supabase
       .from('meetings')
       .insert({
         title,
-        status,
+        status: status || 'scheduled',
         scheduled_date: scheduled_date || new Date().toISOString(),
         created_by: session.user.email,
-        participants: [session.user.email]
+        participants: [session.user.email],
+        meeting_url: meeting_url || null,
+        description: description || ''
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating meeting:', error);
+      console.error('Supabase error details:', error);
       return NextResponse.json(
-        { error: 'Failed to create meeting' },
+        { error: error.message || 'Failed to create meeting' },
         { status: 500 }
       );
     }
 
+    console.log('Successfully created meeting:', meeting);
     return NextResponse.json({ meeting });
   } catch (error) {
-    console.error('Error in POST /api/meetings:', error);
+    console.error('Detailed error in POST /api/meetings:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: error instanceof Error ? error.message : 'Internal Server Error' },
       { status: 500 }
     );
   }

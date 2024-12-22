@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Plus, Calendar, History, Users, Video, Loader2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Calendar, History, Users, Video, Loader2, ArrowRight, Copy, Share2 } from 'lucide-react';
 import RecentMeetings from '@/components/RecentMeetings';
 import UpcomingMeetings from '@/components/UpcomingMeetings';
 import { Meeting } from '@/types/meeting';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const container = {
   hidden: { opacity: 0 },
@@ -25,11 +27,28 @@ const item = {
   show: { y: 0, opacity: 1 }
 };
 
+const shakeAnimation = {
+  initial: { rotate: 0 },
+  animate: {
+    rotate: [0, -10, 10, -10, 10, -5, 5, -5, 5, 0],
+    transition: {
+      duration: 0.8,
+      ease: "easeInOut",
+      times: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1]
+    }
+  }
+};
+
 export default function DashboardPage() {
+  const router = useRouter();
   const [recentMeetings, setRecentMeetings] = useState<Meeting[]>([]);
   const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [meetingLink, setMeetingLink] = useState<string | null>(null);
+  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -81,6 +100,62 @@ export default function DashboardPage() {
 
     fetchMeetings();
   }, []);
+
+  const createInstantMeeting = async () => {
+    try {
+      setCreatingMeeting(true);
+      setError(null);
+
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `Quick Meeting - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+          description: 'Instant meeting',
+          status: 'scheduled',
+          scheduled_date: new Date().toISOString(),
+          meeting_url: `/video-call/${Date.now()}`
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create meeting');
+      }
+
+      if (!data.meeting?.id) {
+        throw new Error('Invalid meeting data received');
+      }
+
+      // For instant meetings, we use the video-call URL format
+      const joinUrl = `${window.location.origin}/meetings/${data.meeting.id}/video-call`;
+      setMeetingLink(joinUrl);
+      setShowMeetingDialog(true);
+    } catch (error) {
+      console.error('Failed to create instant meeting:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create meeting');
+      setShowMeetingDialog(false);
+    } finally {
+      setCreatingMeeting(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (meetingLink) {
+      await navigator.clipboard.writeText(meetingLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const joinMeeting = () => {
+    if (meetingLink) {
+      router.push(meetingLink.replace(window.location.origin, ''));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
@@ -193,7 +268,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Button
               asChild
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
             >
               <Link href="/meetings/create">
                 <Plus className="mr-2 h-4 w-4" />
@@ -201,14 +276,22 @@ export default function DashboardPage() {
               </Link>
             </Button>
             <Button
-              asChild
+              onClick={createInstantMeeting}
+              disabled={creatingMeeting}
               variant="outline"
               className="border-2 border-blue-200 hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-all duration-300"
             >
-              <Link href="/meetings/create">
-                <Video className="mr-2 h-4 w-4" />
-                Start Instant Meeting
-              </Link>
+              {creatingMeeting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Video className="mr-2 h-4 w-4" />
+                  Start Instant Meeting
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -295,6 +378,64 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </div>
+
+      {/* Instant Meeting Dialog */}
+      <Dialog open={showMeetingDialog} onOpenChange={setShowMeetingDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Your Meeting is Ready!</DialogTitle>
+            <DialogDescription>
+              Share this link with others to join the meeting. Anyone with the link can join.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+              <input
+                type="text"
+                value={meetingLink}
+                readOnly
+                className="flex-1 bg-transparent outline-none text-gray-800 dark:text-gray-200"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={copyLink}
+                className="text-gray-600 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400"
+              >
+                {copied ? (
+                  <span className="text-green-500 dark:text-green-400 text-sm font-medium">Copied!</span>
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={copyLink}
+                className="flex-1 gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Invite Link
+              </Button>
+              <Button
+                onClick={joinMeeting}
+                className="flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+              >
+                <Video className="h-4 w-4" />
+                Join Now
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-4">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
