@@ -14,6 +14,7 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000', 'collabai-frontend-b3dmgdgdaxj-vipulshettys-projects.vercel.app'],
     },
     appDir: true,
+    serverComponentsExternalPackages: ['next'],
   },
   webpack: (config) => {
     config.resolve.fallback = {

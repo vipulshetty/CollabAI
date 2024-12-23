@@ -1,6 +1,4 @@
-.next
-node_modules
-.env
-.env.local
-README.md
 .git
+.env.local
+node_modules
+.next

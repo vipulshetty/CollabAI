@@ -1,17 +1,19 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "outputDirectory": ".next",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
   "framework": "nextjs",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
-  "env": {
-    "NEXT_PUBLIC_SOCKET_URL": "https://collabai-frontend-b3dmgdaxj-vipulshettys-projects.vercel.app",
-    "NEXTAUTH_URL": "https://collabai-frontend-b3dmgdaxj-vipulshettys-projects.vercel.app"
-  },
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/"
     }
   ]
 }
