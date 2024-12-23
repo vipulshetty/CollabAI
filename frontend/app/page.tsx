@@ -2,7 +2,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Video, Users, Shield, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Video, Users, Shield, ArrowRight, Brain, FileText, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 const container = {
@@ -20,6 +20,46 @@ const item = {
   show: { y: 0, opacity: 1 }
 };
 
+const Feature = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <motion.div
+    variants={item}
+    className="relative group"
+    whileHover={{ y: -5 }}
+  >
+    {/* Decorative elements */}
+    <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-40 blur transition duration-500" />
+    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+    
+    {/* Main content */}
+    <div className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl p-8 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl hover:shadow-2xl transition-all duration-300 h-full overflow-hidden">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      {/* Icon container with gradient background */}
+      <div className="relative bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-4 w-fit mb-6 group-hover:scale-110 transition-transform duration-300">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-sm" />
+        <div className="relative">
+          {icon}
+        </div>
+      </div>
+
+      {/* Title with gradient text */}
+      <h3 className="text-xl font-semibold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 group-hover:from-blue-500 group-hover:via-purple-500 group-hover:to-pink-500 transition-all duration-300">
+        {title}
+      </h3>
+
+      {/* Description with improved typography */}
+      <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+        {description}
+      </p>
+
+      {/* Decorative corner elements */}
+      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-purple-500/10 to-pink-500/10 rounded-tr-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+    </div>
+  </motion.div>
+);
+
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -32,10 +72,39 @@ export default function HomePage() {
     }
   };
 
+  const features = [
+    {
+      icon: <Brain className="w-8 h-8 text-blue-600/90 group-hover:text-blue-500 transition-colors duration-300" />,
+      title: "AI-Powered Insights",
+      description: "Experience real-time transcription and intelligent meeting summaries powered by cutting-edge AI technology."
+    },
+    {
+      icon: <Users className="w-8 h-8 text-purple-600/90 group-hover:text-purple-500 transition-colors duration-300" />,
+      title: "Seamless Collaboration",
+      description: "Connect effortlessly with your team through crystal-clear video calls and intuitive collaborative tools."
+    },
+    {
+      icon: <FileText className="w-8 h-8 text-pink-600/90 group-hover:text-pink-500 transition-colors duration-300" />,
+      title: "Smart Documentation",
+      description: "Let AI automatically capture and organize your meeting notes, action items, and key decisions."
+    },
+    {
+      icon: <Shield className="w-8 h-8 text-indigo-600/90 group-hover:text-indigo-500 transition-colors duration-300" />,
+      title: "Enterprise Security",
+      description: "Rest easy with end-to-end encryption and enterprise-grade security protecting your meetings."
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20">
+      {/* Hero Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 blur-3xl transform rotate-12" />
+        <div className="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-blue-500/10 blur-3xl transform -rotate-12" />
+      </div>
+
       {/* Navbar */}
-      <nav className="backdrop-blur-sm bg-white/50 dark:bg-gray-900/50 sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800">
+      <nav className="backdrop-blur-md bg-white/60 dark:bg-gray-900/60 sticky top-0 z-50 border-b border-white/20 dark:border-gray-800/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -43,13 +112,15 @@ export default function HomePage() {
                 initial={{ rotate: -10, scale: 0.9 }}
                 animate={{ rotate: 0, scale: 1 }}
                 transition={{ duration: 0.5 }}
+                className="relative"
               >
-                <Video className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-md" />
+                <Video className="relative w-8 h-8 text-blue-600 dark:text-blue-400" />
               </motion.div>
               <motion.h1
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 ml-2"
+                className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 ml-3"
               >
                 CollabAI
               </motion.h1>
@@ -60,18 +131,24 @@ export default function HomePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => router.push('/dashboard')}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+                  className="relative group px-6 py-2"
                 >
-                  Dashboard
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg" />
+                  <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300">
+                    Dashboard
+                  </div>
                 </motion.button>
               ) : (
                 <Link href="/auth/signin">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+                    className="relative group px-6 py-2"
                   >
-                    Sign In
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur-sm" />
+                    <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300">
+                      Sign In
+                    </div>
                   </motion.button>
                 </Link>
               )}
@@ -80,16 +157,20 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <main className="relative">
+      <main className="relative overflow-hidden">
         {/* Hero Section */}
         <motion.div
           variants={container}
           initial="hidden"
           animate="show"
-          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center"
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20"
         >
-          <motion.div variants={item} className="max-w-4xl mx-auto">
-            <h2 className="text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+          <motion.div variants={item} className="max-w-4xl mx-auto text-center mb-20">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-500/10 rounded-full mb-8">
+              <Sparkles className="w-4 h-4 text-blue-600 mr-2" />
+              <span className="text-sm font-medium text-blue-600">Revolutionizing Virtual Meetings</span>
+            </div>
+            <h2 className="text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
               Smart Video Meetings with AI
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
@@ -101,81 +182,45 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleGetStarted}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+                className="relative group"
               >
-                Get Started
-                <ArrowRight className="inline-block ml-2 w-5 h-5" />
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur-sm group-hover:blur-md transition-all duration-300" />
+                <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-8 py-3 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 text-lg font-semibold">
+                  Get Started
+                  <ArrowRight className="inline-block ml-2 w-5 h-5" />
+                </div>
               </motion.button>
-            </div>
-
-            {/* Quick Benefits */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-16">
-              {[
-                "AI-Powered Transcription",
-                "Smart Meeting Summaries",
-                "Team Collaboration Tools",
-                "Secure & Private"
-              ].map((benefit, index) => (
-                <motion.div
-                  key={benefit}
-                  variants={item}
-                  className="flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              <Link href="/about">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="relative group"
                 >
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  <span>{benefit}</span>
-                </motion.div>
-              ))}
+                  <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-xl blur-sm group-hover:blur-md transition-all duration-300" />
+                  <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm text-gray-800 dark:text-white px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-lg font-semibold">
+                    Learn More
+                  </div>
+                </motion.button>
+              </Link>
             </div>
           </motion.div>
-        </motion.div>
 
-        {/* Features Section */}
-        <section id="features" className="py-20 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div
-              variants={container}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
-            >
+          {/* Features Grid */}
+          <motion.div 
+            variants={container}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"
+          >
+            {features.map((feature, index) => (
               <Feature
-                icon={<Video className="w-8 h-8 text-blue-600 dark:text-blue-400" />}
-                title="AI Transcription"
-                description="Get real-time transcription of your meetings powered by advanced AI."
+                key={index}
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
               />
-              <Feature
-                icon={<Shield className="w-8 h-8 text-purple-600 dark:text-purple-400" />}
-                title="Secure & Private"
-                description="End-to-end encryption and advanced security features to protect your meetings."
-              />
-              <Feature
-                icon={<Users className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />}
-                title="Team Collaboration"
-                description="Interactive whiteboard, file sharing, and breakout rooms for better teamwork."
-              />
-              <Feature
-                icon={<Zap className="w-8 h-8 text-pink-600 dark:text-pink-400" />}
-                title="Smart Summaries"
-                description="Get AI-generated meeting summaries and action items automatically."
-              />
-            </motion.div>
-          </div>
-        </section>
+            ))}
+          </motion.div>
+        </motion.div>
       </main>
     </div>
-  );
-}
-
-function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <motion.div
-      variants={item}
-      whileHover={{ y: -5 }}
-      className="p-8 rounded-xl bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700"
-    >
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400">{description}</p>
-    </motion.div>
   );
 }

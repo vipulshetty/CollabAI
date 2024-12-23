@@ -9,9 +9,7 @@ import {
   PhoneOff,
   Pencil,
   CircleDot,
-  StopCircle,
-  FileText,
-  Loader2
+  StopCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -34,8 +32,6 @@ interface VideoControlsProps {
   stream: MediaStream | null;
   currentMeeting: string;
   endMeeting: () => void;
-  onGenerateSummary: () => void;
-  isSummarizing: boolean;
 }
 
 export default function VideoControls({
@@ -51,135 +47,92 @@ export default function VideoControls({
   onStartRecording,
   onStopRecording,
   isRecording,
-  onGenerateSummary,
-  isSummarizing
 }: VideoControlsProps) {
+  const handleVideoToggle = async () => {
+    try {
+      await onToggleVideo();
+    } catch (error) {
+      console.error('Error toggling video:', error);
+    }
+  };
+
   return (
-    <motion.div 
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="flex flex-col items-center gap-4"
-    >
-      <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/40 backdrop-blur-lg border border-white/10">
-        <motion.button
-          onClick={onToggleAudio}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl ${isMuted ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
-            {isMuted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              {isMuted ? 'Unmute' : 'Mute'}
-            </span>
-          </div>
-        </motion.button>
+    <div className="flex items-center justify-center space-x-2 bg-gray-900/90 backdrop-blur-sm px-6 py-3 rounded-full shadow-lg">
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onToggleAudio}
+        className={`p-2.5 rounded-full transition-colors ${
+          isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+        }`}
+      >
+        {isMuted ? (
+          <MicOff className="w-5 h-5 text-white" />
+        ) : (
+          <Mic className="w-5 h-5 text-white" />
+        )}
+      </motion.button>
 
-        <motion.button
-          onClick={onToggleVideo}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl ${isVideoOff ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
-            {isVideoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              {isVideoOff ? 'Start Video' : 'Stop Video'}
-            </span>
-          </div>
-        </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={handleVideoToggle}
+        className={`p-2.5 rounded-full transition-colors ${
+          isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+        }`}
+      >
+        {isVideoOff ? (
+          <VideoOff className="w-5 h-5 text-white" />
+        ) : (
+          <Video className="w-5 h-5 text-white" />
+        )}
+      </motion.button>
 
-        <motion.button
-          onClick={onToggleChat}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl ${showChat ? 'bg-blue-500/80 hover:bg-blue-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
-            <MessageCircle className="w-6 h-6 text-white" />
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              Chat
-            </span>
-          </div>
-        </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onToggleChat}
+        className={`p-2.5 rounded-full transition-colors ${
+          showChat ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
+        }`}
+      >
+        <MessageCircle className="w-5 h-5 text-white" />
+      </motion.button>
 
-        <motion.button
-          onClick={onToggleWhiteboard}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl ${showWhiteboard ? 'bg-blue-500/80 hover:bg-blue-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
-            <Pencil className="w-6 h-6 text-white" />
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              Whiteboard
-            </span>
-          </div>
-        </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onToggleWhiteboard}
+        className={`p-2.5 rounded-full transition-colors ${
+          showWhiteboard ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
+        }`}
+      >
+        <Pencil className="w-5 h-5 text-white" />
+      </motion.button>
 
-        <motion.button
-          onClick={isRecording ? onStopRecording : onStartRecording}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl ${isRecording ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
-            {isRecording ? <StopCircle className="w-6 h-6 text-white" /> : <CircleDot className="w-6 h-6 text-white" />}
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
-            </span>
-          </div>
-        </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={isRecording ? onStopRecording : onStartRecording}
+        className={`p-2.5 rounded-full transition-colors ${
+          isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+        }`}
+      >
+        {isRecording ? (
+          <StopCircle className="w-5 h-5 text-white" />
+        ) : (
+          <CircleDot className="w-5 h-5 text-white" />
+        )}
+      </motion.button>
 
-        <motion.button
-          onClick={onGenerateSummary}
-          disabled={isSummarizing}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className={`p-3.5 rounded-xl bg-gray-800/80 hover:bg-gray-700/80 transition-colors duration-200 ${isSummarizing ? 'opacity-50' : ''}`}>
-            {isSummarizing ? (
-              <Loader2 className="w-6 h-6 text-white animate-spin" />
-            ) : (
-              <FileText className="w-6 h-6 text-white" />
-            )}
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              {isSummarizing ? 'Generating...' : 'Generate Summary'}
-            </span>
-          </div>
-        </motion.button>
-        
-        <div className="w-px h-8 bg-white/20 mx-2" />
-        
-        <motion.button
-          onClick={onEndCall}
-          className="relative group flex flex-col items-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="p-3.5 rounded-xl bg-red-500 hover:bg-red-600 transition-colors duration-200">
-            <PhoneOff className="w-6 h-6 text-white" />
-          </div>
-          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
-            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
-              End Call
-            </span>
-          </div>
-        </motion.button>
-      </div>
-    </motion.div>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onEndCall}
+        className="p-2.5 bg-red-500 hover:bg-red-600 rounded-full transition-colors"
+      >
+        <PhoneOff className="w-5 h-5 text-white" />
+      </motion.button>
+    </div>
   );
 }

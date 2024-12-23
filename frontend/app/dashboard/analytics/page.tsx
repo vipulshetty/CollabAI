@@ -13,10 +13,7 @@ import {
   Zap,
   TrendingUp,
   Calendar,
-  Activity,
-  Minimize2,
-  Send,
-  Paperclip
+  Activity
 } from 'lucide-react';
 import {
   BarChart,
@@ -108,18 +105,6 @@ const MetricCard = ({ metric }: { metric: any }) => (
   </motion.div>
 );
 
-const EmptyState = () => (
-  <div className="flex flex-col items-center justify-center p-8 text-center">
-    <Activity className="w-12 h-12 text-gray-400 mb-4" />
-    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-      No Analytics Data Yet
-    </h3>
-    <p className="text-gray-500 dark:text-gray-400 mb-4">
-      Start creating and joining meetings to see analytics insights.
-    </p>
-  </div>
-);
-
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('month');
   const [activeTab, setActiveTab] = useState('overview');
@@ -172,26 +157,6 @@ export default function AnalyticsPage() {
         <div className="text-gray-500 dark:text-gray-400">
           No analytics data available
         </div>
-      </div>
-    );
-  }
-
-  const hasData = analyticsData.overview.totalMeetings > 0;
-
-  if (!hasData) {
-    return (
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Analytics Dashboard
-            </h1>
-            <p className="mt-1 text-gray-500 dark:text-gray-400">
-              Comprehensive insights into your meetings and team collaboration
-            </p>
-          </div>
-        </div>
-        <EmptyState />
       </div>
     );
   }

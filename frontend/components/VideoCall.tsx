@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoControls from './VideoControls';
 import ParticipantVideo from './ParticipantVideo';
@@ -32,6 +33,7 @@ const getGridSize = (totalParticipants: number): string => {
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
+  const { data: session } = useSession();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -51,9 +53,11 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const recordingServiceRef = useRef<RecordingService | null>(null);
   const socketRef = useRef<any>(null);
+  const [messages, setMessages] = useState<Array<{ content: string; sender: string; isLocal: boolean }>>([]);
   const [transcriptText, setTranscriptText] = useState<string>('');
-  const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState<string>('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [peerConnections, setPeerConnections] = useState<{ [key: string]: RTCPeerConnection }>({});
 
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
@@ -222,6 +226,56 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   }, [socketReady, peerId]);
 
+  useEffect(() => {
+    if (socketService.socket) {
+      socketService.socket.on('user-joined', async (userId: string) => {
+        console.log('User joined:', userId);
+        
+        // Create new peer connection for the user
+        const peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+          ]
+        });
+        
+        // Add local tracks to the connection
+        if (localStream) {
+          localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+          });
+        }
+        
+        setPeerConnections(prev => ({
+          ...prev,
+          [userId]: peerConnection
+        }));
+        
+        setParticipants(prev => [...prev, userId]);
+      });
+
+      socketService.socket.on('user-left', (userId: string) => {
+        console.log('User left:', userId);
+        
+        // Clean up peer connection
+        if (peerConnections[userId]) {
+          peerConnections[userId].close();
+          setPeerConnections(prev => {
+            const newConnections = { ...prev };
+            delete newConnections[userId];
+            return newConnections;
+          });
+        }
+        
+        setParticipants(prev => prev.filter(id => id !== userId));
+      });
+
+      return () => {
+        socketService.socket?.off('user-joined');
+        socketService.socket?.off('user-left');
+      };
+    }
+  }, [socketService.socket, localStream, peerConnections]);
+
   const handleStartRecording = async () => {
     if (!localStream || !recordingServiceRef.current) return;
     
@@ -321,6 +375,49 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
+  const toggleVideo = async () => {
+    try {
+      if (localStream) {
+        const videoTracks = localStream.getVideoTracks();
+        
+        if (!isVideoOff) {
+          // Turn off video
+          videoTracks.forEach(track => {
+            track.enabled = false;
+            track.stop();
+          });
+          setIsVideoOff(true);
+        } else {
+          // Turn on video
+          try {
+            const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            
+            const audioTrack = localStream.getAudioTracks()[0];
+            const updatedStream = new MediaStream([newVideoTrack, audioTrack]);
+            
+            setLocalStream(updatedStream);
+            
+            // Update video track in all peer connections
+            Object.values(peerConnections).forEach(pc => {
+              const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+              if (sender) {
+                sender.replaceTrack(newVideoTrack);
+              }
+            });
+            
+            setIsVideoOff(false);
+          } catch (error) {
+            console.error('Error reacquiring video stream:', error);
+            return; // Don't update isVideoOff if we failed to get new stream
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling video:', error);
+    }
+  };
+
   const handleToggleAudio = () => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
@@ -331,33 +428,66 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
-  const handleToggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoOff(!videoTrack.enabled);
-      }
-    }
-  };
-
   const handleToggleWhiteboard = () => {
     setShowWhiteboard(!showWhiteboard);
   };
 
-  const generateSummary = async () => {
-    try {
-      setIsSummarizing(true);
-      const response = await fetch(`/api/meetings/${currentMeeting?.id}/summary`, {
-        method: 'POST'
+  const handleSendMessage = (content: string) => {
+    console.log('Sending message:', content);
+    if (socketService.socket) {
+      const messageData = {
+        roomId: peerId,
+        content,
+        sender: session?.user?.name || 'Anonymous',
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('Emitting chat message:', messageData);
+      socketService.socket.emit('chat-message', messageData);
+
+      setMessages(prev => [...prev, {
+        content,
+        sender: session?.user?.name || 'Anonymous',
+        isLocal: true
+      }]);
+    } else {
+      console.error('Socket not connected');
+    }
+  };
+
+  useEffect(() => {
+    if (socketService.socket) {
+      console.log('Setting up chat message listener');
+      
+      socketService.socket.on('chat-message', (data: { content: string; sender: string }) => {
+        console.log('Received chat message:', data);
+        if (data.sender !== session?.user?.name) { // Don't add our own messages twice
+          setMessages(prev => [...prev, {
+            content: data.content,
+            sender: data.sender,
+            isLocal: false
+          }]);
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate summary');
-      }
+      return () => {
+        console.log('Cleaning up chat message listener');
+        socketService.socket?.off('chat-message');
+      };
+    }
+  }, [socketService.socket, session?.user?.name]);
 
-      const data = await response.json();
-      setSummary(data.summary);
+  useEffect(() => {
+    console.log('Current messages:', messages);
+  }, [messages]);
+
+  const generateSummary = async () => {
+    setIsSummarizing(true);
+    try {
+      // Add your summary generation logic here
+      // For now, we'll just combine all transcripts
+      const summary = transcripts.join(' ');
+      setSummary(summary);
     } catch (error) {
       console.error('Error generating summary:', error);
     } finally {
@@ -388,21 +518,14 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
             >
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute inset-0 w-full h-full object-cover"
+              <ParticipantVideo
+                participantId={peerId}
+                layout="grid"
+                stream={localStream}
+                isLocal={true}
+                isVideoOff={isVideoOff}
+                profileImage={session?.user?.image || undefined}
               />
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-lg"
-              >
-                <span className="text-white text-sm">You</span>
-              </motion.div>
             </motion.div>
             
             {participants.map((participantId, index) => (
@@ -415,6 +538,11 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               >
                 <ParticipantVideo
                   participantId={participantId}
+                  layout="grid"
+                  stream={null}
+                  isLocal={false}
+                  isVideoOff={false}
+                  profileImage={null}
                 />
               </motion.div>
             ))}
@@ -422,26 +550,23 @@ export default function VideoCall({ peerId }: VideoCallProps) {
         </motion.div>
 
         <AnimatePresence>
-          {showChat && socketReady && (
+          {showChat && (
             <motion.div
-              initial={{ opacity: 0, x: 300 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 300 }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="absolute top-4 right-4 bottom-24 w-80 max-w-[calc(100%-2rem)] z-50"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 20 }}
+              className="fixed right-4 top-4 bottom-32 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden"
             >
-              <div className="h-full flex flex-col bg-black/40 backdrop-blur-md rounded-2xl border border-white/10">
-                <div className="flex-1 overflow-hidden">
-                  <ChatSystem 
-                    socket={socketRef.current}
-                    roomId={peerId}
-                    onClose={() => setShowChat(false)}
-                    minimized={false}
-                    onMinimize={() => setShowChat(!showChat)}
-                    username="You"
-                  />
-                </div>
-              </div>
+              <ChatSystem
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                transcripts={transcripts}
+                transcriptText={transcriptText}
+                summary={summary}
+                isSummarizing={isSummarizing}
+                onRequestSummary={generateSummary}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -487,7 +612,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             localStream={localStream}
             onEndCall={handleEndCall}
             onToggleAudio={handleToggleAudio}
-            onToggleVideo={handleToggleVideo}
+            onToggleVideo={toggleVideo}
             isMuted={isMuted}
             isVideoOff={isVideoOff}
             showChat={showChat}

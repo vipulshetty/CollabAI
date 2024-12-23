@@ -100,17 +100,23 @@ export class TranscriptionService {
 
   private handleError(event: SpeechRecognitionErrorEvent) {
     const errorDetails = {
-      error: event.error,
+      type: event.error,
       message: event.message || 'No error message available',
       isTranscribing: this.isTranscribing,
       retryCount: this.retryCount,
       timestamp: new Date().toISOString()
     };
 
-    console.error('Speech recognition error:', errorDetails);
+    // Only log meaningful errors
+    if (event.error !== 'no-speech') {
+      console.error('Speech recognition error:', {
+        type: errorDetails.type,
+        message: errorDetails.message
+      });
+    }
 
-    // Notify the socket about the error
-    if (this.socket && this.socket.connected) {
+    // Notify the socket about the error (except for no-speech)
+    if (this.socket?.connected && event.error !== 'no-speech') {
       this.socket.emit('transcription-error', {
         roomId: this.roomId,
         ...errorDetails
@@ -120,34 +126,67 @@ export class TranscriptionService {
     // Handle specific error types
     switch (event.error) {
       case 'not-allowed':
-        console.error('Microphone access denied');
-        this.stop();
+        this.handlePermissionDenied();
         break;
       case 'no-speech':
-        console.log('No speech detected, continuing...');
+        // Don't treat no-speech as an error, just continue
         break;
       case 'network':
-        console.error('Network error occurred');
-        this.attemptReconnect();
+        this.handleNetworkError();
         break;
       case 'aborted':
-        console.log('Speech recognition aborted');
         if (this.isTranscribing) {
           this.attemptReconnect();
         }
         break;
       case 'audio-capture':
-        console.error('No microphone was found or microphone is not working');
-        this.stop();
+        this.handleAudioCaptureError();
         break;
       case 'service-not-allowed':
-        console.error('Speech recognition service not allowed');
-        this.stop();
+        this.handleServiceNotAllowed();
         break;
       default:
         if (this.isTranscribing) {
           this.attemptReconnect();
         }
+    }
+  }
+
+  private handlePermissionDenied() {
+    console.error('Microphone access was denied by the user');
+    this.stop();
+    // Notify UI about permission denial
+    if (this.socket?.connected) {
+      this.socket.emit('transcription-permission-denied', {
+        roomId: this.roomId
+      });
+    }
+  }
+
+  private handleNetworkError() {
+    console.error('Network error occurred during transcription');
+    this.attemptReconnect();
+  }
+
+  private handleAudioCaptureError() {
+    console.error('No microphone found or microphone is not working');
+    this.stop();
+    if (this.socket?.connected) {
+      this.socket.emit('transcription-device-error', {
+        roomId: this.roomId,
+        error: 'No microphone found or microphone is not working'
+      });
+    }
+  }
+
+  private handleServiceNotAllowed() {
+    console.error('Speech recognition service is not allowed');
+    this.stop();
+    if (this.socket?.connected) {
+      this.socket.emit('transcription-service-error', {
+        roomId: this.roomId,
+        error: 'Speech recognition service is not allowed'
+      });
     }
   }
 

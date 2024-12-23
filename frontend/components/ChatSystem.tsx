@@ -1,312 +1,133 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { Socket } from 'socket.io-client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Message } from '@/types/chat';
+import { Send, X, Minimize2, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Minimize2, Paperclip, MessageSquare } from 'lucide-react';
-import { socketService } from '@/services/socketService';
 
 interface ChatSystemProps {
-  socket: Socket;
-  roomId: string;
-  onClose: () => void;
-  minimized: boolean;
-  onMinimize: () => void;
-  username?: string;
+  messages: Array<{ content: string; sender: string; isLocal: boolean }>;
+  onSendMessage: (content: string) => void;
+  transcripts: string[];
+  transcriptText: string;
+  summary: string;
+  isSummarizing: boolean;
+  onRequestSummary: () => void;
 }
 
-interface Message {
-  id: string;
-  text: string;
-  sender: string;
-  timestamp: number;
-  type: 'text' | 'file' | 'image';
-  fileUrl?: string;
-}
-
-export default function ChatSystem({ 
-  socket, 
-  roomId, 
-  onClose, 
-  minimized, 
-  onMinimize,
-  username = 'You'
+export default function ChatSystem({
+  messages,
+  onSendMessage,
+  transcripts,
+  transcriptText,
+  summary,
+  isSummarizing,
+  onRequestSummary
 }: ChatSystemProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(socket.connected);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
-
-  const handleTyping = () => {
-    socket.emit('typing', { roomId, username });
-    
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('stop-typing', { roomId, username });
-    }, 2000);
-  };
 
   useEffect(() => {
-    if (!socket) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    const handleConnect = () => {
-      setIsConnected(true);
-      socket.emit('join-chat', { roomId });
-    };
+  useEffect(() => {
+    console.log('Messages prop updated:', messages);
+  }, [messages]);
 
-    const handleDisconnect = () => {
-      setIsConnected(false);
-    };
-
-    const handleMessage = (message: Message) => {
-      setMessages(prev => [...prev, message]);
-    };
-
-    const handleTyping = (data: { username: string }) => {
-      setTypingUsers(prev => {
-        if (!prev.includes(data.username)) {
-          return [...prev, data.username];
-        }
-        return prev;
-      });
-
-      // Emit typing event
-      socket.emit('typing', { roomId, username });
-      
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stop-typing', { roomId, username });
-      }, 2000);
-    };
-
-    const handleStopTyping = (data: { username: string }) => {
-      setTypingUsers(prev => prev.filter(user => user !== data.username));
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('chat-message', handleMessage);
-    socket.on('user-typing', handleTyping);
-    socket.on('user-stop-typing', handleStopTyping);
-
-    if (socket.connected) {
-      handleConnect();
-    }
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('chat-message', handleMessage);
-      socket.off('user-typing', handleTyping);
-      socket.off('user-stop-typing', handleStopTyping);
-    };
-  }, [socket, roomId, username]);
-
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isConnected || !newMessage.trim()) return;
-
-    const message: Message = {
-      id: Date.now().toString(),
-      text: newMessage,
-      sender: username,
-      timestamp: Date.now(),
-      type: 'text'
-    };
-
-    socket.emit('send-message', { roomId, message });
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      const { fileUrl } = await response.json();
-
-      const message: Message = {
-        id: Date.now().toString(),
-        text: file.name,
-        sender: username,
-        timestamp: Date.now(),
-        type: file.type.startsWith('image/') ? 'image' : 'file',
-        fileUrl
-      };
-
-      socket.emit('send-message', { roomId, message });
-      setMessages(prev => [...prev, message]);
-    } catch (error) {
-      console.error('Error uploading file:', error);
+    console.log('Submitting message:', newMessage);
+    if (newMessage.trim()) {
+      console.log('Calling onSendMessage with:', newMessage.trim());
+      onSendMessage(newMessage.trim());
+      setNewMessage('');
     }
   };
-
-  useEffect(() => {
-    const socket = socketService.getSocket();
-    console.log('Socket status:', socket?.connected);
-  }, []);
-
-  if (minimized) {
-    return (
-      <motion.div 
-        className="fixed bottom-4 right-4 bg-blue-500 text-white p-3 rounded-full cursor-pointer shadow-lg"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onMinimize}
-      >
-        <div className="relative">
-          <MessageSquare size={24} />
-          {messages.length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-              {messages.length}
-            </span>
-          )}
-        </div>
-      </motion.div>
-    );
-  }
 
   return (
-    <motion.div 
-      className="w-80 bg-[#1a1b1e] rounded-lg shadow-lg overflow-hidden"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <div className="flex flex-col h-[500px]">
-        <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-[#2d2e32]">
-          <h2 className="text-lg font-semibold text-white">Chat</h2>
-          <button 
-            onClick={onMinimize}
-            className="text-gray-400 hover:text-white transition-colors"
+    <div className="flex flex-col h-full">
+      {/* Chat Header */}
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-900 border-b border-gray-700">
+        <h3 className="text-sm font-medium text-white">Chat & Transcripts</h3>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {messages.map((message, index) => {
+          console.log('Rendering message:', message);
+          return (
+            <div
+              key={index}
+              className={`flex ${
+                message.isLocal ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <div
+                className={`max-w-[85%] px-3 py-1.5 rounded-lg text-sm ${
+                  message.isLocal
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-white'
+                }`}
+              >
+                <p className="break-words">{message.content}</p>
+                <span className="text-xs opacity-75 mt-0.5 block">
+                  {message.sender}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Transcripts */}
+        {transcripts.length > 0 && (
+          <div className="border-t border-gray-700 mt-4 pt-4">
+            <h4 className="text-sm font-medium text-gray-400 mb-2">Transcripts</h4>
+            {transcripts.map((transcript, index) => (
+              <div key={index} className="text-sm text-gray-300 mb-2">
+                {transcript}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Live Transcript */}
+        {transcriptText && (
+          <div className="text-sm text-gray-400 italic">
+            {transcriptText}
+          </div>
+        )}
+
+        {/* Summary */}
+        {summary && (
+          <div className="border-t border-gray-700 mt-4 pt-4">
+            <h4 className="text-sm font-medium text-gray-400 mb-2">Summary</h4>
+            <p className="text-sm text-gray-300">{summary}</p>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Message Input */}
+      <form onSubmit={handleSubmit} className="p-2 border-t border-gray-700">
+        <div className="flex space-x-1">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 px-2 py-1.5 bg-gray-700 text-sm text-white rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={!newMessage.trim()}
+            className="p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Minimize2 size={20} />
+            <Send className="w-4 h-4" />
           </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwn={msg.sender === username}
-            />
-          ))}
-          {typingUsers.length > 0 && (
-            <div className="text-gray-400 text-sm">
-              {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div className="p-4 border-t border-gray-700 bg-[#2d2e32]">
-          <form onSubmit={handleSendMessage} className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <Paperclip size={20} />
-            </button>
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => {
-                setNewMessage(e.target.value);
-                handleTyping();
-              }}
-              placeholder="Type a message..."
-              className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <Send size={20} />
-            </button>
-          </form>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
-            accept="image/*,.pdf,.doc,.docx"
-          />
-        </div>
-      </div>
-    </motion.div>
+      </form>
+    </div>
   );
 }
-
-interface MessageBubbleProps {
-  message: Message;
-  isOwn: boolean;
-}
-
-function MessageBubble({ message, isOwn }: MessageBubbleProps) {
-  return (
-    <motion.div
-      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <div
-        className={`max-w-[80%] rounded-lg px-4 py-2 ${
-          isOwn ? 'bg-blue-500 text-white' : 'bg-gray-700 text-white'
-        }`}
-      >
-        {!isOwn && (
-          <div className="text-sm font-medium mb-1">{message.sender}</div>
-        )}
-        
-        {message.type === 'text' && (
-          <p className="text-sm">{message.text}</p>
-        )}
-        
-        {message.type === 'image' && message.fileUrl && (
-          <img 
-            src={message.fileUrl} 
-            alt={message.text}
-            className="max-w-full rounded-lg"
-          />
-        )}
-        
-        {message.type === 'file' && message.fileUrl && (
-          <a 
-            href={message.fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-blue-200 hover:text-blue-100"
-          >
-            <Paperclip size={16} />
-            {message.text}
-          </a>
-        )}
-
-        <div className="mt-1">
-          <span className="text-xs opacity-75">
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
-} 
