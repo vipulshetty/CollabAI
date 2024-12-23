@@ -2,10 +2,14 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "src/server.ts",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "nodemon --exec ts-node src/server.ts",
-    "build": "npx tsc",
-    "start": "node dist/server.js"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "vercel-build": "tsc"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.5",
