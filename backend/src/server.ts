@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from 'dotenv';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
@@ -8,41 +8,62 @@ import { createServer } from 'http';
 // Load environment variables
 config();
 
+// Type guard for environment variables
+function assertEnvVar(value: string | undefined, name: string): string {
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
+}
+
+// Get and validate environment variables
+const supabaseUrl = assertEnvVar(process.env.SUPABASE_URL, 'SUPABASE_URL');
+const supabaseKey = assertEnvVar(process.env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const port = process.env.PORT || 3001;
+
+// Initialize Express app
 const app = express();
 const httpServer = createServer(app);
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase credentials');
+// Add Supabase to request object
+declare global {
+  namespace Express {
+    interface Request {
+      supabase: SupabaseClient;
+    }
+  }
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Configure CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: frontendUrl,
   methods: ['GET', 'POST'],
   credentials: true
 }));
 
+// Parse JSON bodies
 app.use(express.json());
 
-// Add type-safe middleware
-app.use(async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    next();
-  } catch (error) {
-    next(error);
-  }
+// Add Supabase to request
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  req.supabase = supabase;
+  next();
+});
+
+// Error handling middleware
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Initialize Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: frontendUrl,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -57,8 +78,8 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
-
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Start server
+httpServer.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`Frontend URL: ${frontendUrl}`);
 });
