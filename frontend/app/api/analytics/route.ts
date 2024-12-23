@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
     // Calculate the start date based on time range
     const now = new Date();
-    let startDate = new Date();
+    const startDate = new Date();
     switch (timeRange) {
       case 'week':
         startDate.setDate(now.getDate() - 7);

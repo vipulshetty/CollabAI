@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMeetingContext } from '@/contexts/MeetingContext';
@@ -11,6 +11,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
 import RecordingService from '@/services/RecordingService';
 import Whiteboard from './Whiteboard';
+import Video from './icons/Video';
+import VideoOff from './icons/VideoOff';
+import Mic from './icons/Mic';
+import MicOff from './icons/MicOff';
+import Image from 'next/image';
 
 interface VideoCallProps {
   peerId: string;
@@ -59,6 +64,89 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [peerConnections, setPeerConnections] = useState<{ [key: string]: RTCPeerConnection }>({});
 
+  // Event handler functions
+  const handleUserJoined = useCallback(async (userId: string) => {
+    console.log('User joined:', userId);
+    
+    // Create new peer connection for the user
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    });
+    
+    // Add local tracks to the connection
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+    }
+    
+    setPeerConnections(prev => ({
+      ...prev,
+      [userId]: peerConnection
+    }));
+    
+    setParticipants(prev => [...prev, userId]);
+  }, [localStream]);
+
+  const handleUserLeft = useCallback((userId: string) => {
+    console.log('User left:', userId);
+    
+    // Clean up peer connection
+    if (peerConnections[userId]) {
+      peerConnections[userId].close();
+      setPeerConnections(prev => {
+        const newConnections = { ...prev };
+        delete newConnections[userId];
+        return newConnections;
+      });
+    }
+    
+    setParticipants(prev => prev.filter(id => id !== userId));
+  }, [peerConnections]);
+
+  const handleOffer = useCallback(async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
+    console.log('Received offer from:', from);
+    const peerConnection = peerConnections[from];
+    if (!peerConnection) return;
+
+    try {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+
+      const socket = socketService.initSocket();
+      socket?.emit('answer', { to: from, answer });
+    } catch (error) {
+      console.error('Error handling offer:', error);
+    }
+  }, [peerConnections]);
+
+  const handleAnswer = useCallback(async ({ from, answer }: { from: string; answer: RTCSessionDescriptionInit }) => {
+    console.log('Received answer from:', from);
+    const peerConnection = peerConnections[from];
+    if (!peerConnection) return;
+
+    try {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    } catch (error) {
+      console.error('Error handling answer:', error);
+    }
+  }, [peerConnections]);
+
+  const handleIceCandidate = useCallback(({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
+    console.log('Received ICE candidate from:', from);
+    const peerConnection = peerConnections[from];
+    if (!peerConnection) return;
+
+    try {
+      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+      console.error('Error handling ICE candidate:', error);
+    }
+  }, [peerConnections]);
+
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
     return () => {
@@ -69,17 +157,34 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   useEffect(() => {
     const initializeMedia = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+        const constraints = {
+          video: {
+            width: { min: 640, ideal: 1024, max: 1024 },
+            height: { min: 480, ideal: 576, max: 576 },
+            frameRate: { min: 15, ideal: 15, max: 15 },
+            facingMode: 'user'
+          },
           audio: true
-        });
-        setLocalStream(stream);
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         
+        // Set initial track states
+        stream.getVideoTracks().forEach(track => {
+          track.enabled = true;
+        });
+        stream.getAudioTracks().forEach(track => {
+          track.enabled = !isMuted;
+        });
+
+        setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
       } catch (error) {
         console.error('Error accessing media devices:', error);
+        setIsVideoOff(true);
+        setIsMuted(true);
       }
     };
 
@@ -87,10 +192,18 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     
     return () => {
       if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+        localStream.getTracks().forEach(track => {
+          track.stop();
+        });
       }
     };
-  }, []);
+  }, [isMuted]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
 
   useEffect(() => {
     const setupSocket = () => {
@@ -128,29 +241,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (socketReady && socketRef.current && peerId) {
-      socketRef.current.emit('join-room', { roomId: currentMeeting?.id, peerId });
-
-      socketRef.current.on('user-connected', (userId: string) => {
-        console.log('User connected:', userId);
-        if (!participants.includes(userId)) {
-          setParticipants(prev => [...prev, userId]);
-        }
-      });
-
-      socketRef.current.on('user-disconnected', (userId: string) => {
-        console.log('User disconnected:', userId);
-        setParticipants(prev => prev.filter(id => id !== userId));
-      });
-
-      return () => {
-        socketRef.current?.off('user-connected');
-        socketRef.current?.off('user-disconnected');
-      };
-    }
-  }, [socketReady, peerId, currentMeeting?.id, participants]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -227,54 +317,58 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [socketReady, peerId]);
 
   useEffect(() => {
-    if (socketService.socket) {
-      socketService.socket.on('user-joined', async (userId: string) => {
-        console.log('User joined:', userId);
-        
-        // Create new peer connection for the user
-        const peerConnection = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' }
-          ]
-        });
-        
-        // Add local tracks to the connection
-        if (localStream) {
-          localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-          });
-        }
-        
-        setPeerConnections(prev => ({
-          ...prev,
-          [userId]: peerConnection
-        }));
-        
-        setParticipants(prev => [...prev, userId]);
-      });
+    const socket = socketService.initSocket();
+    if (!socket || !localStream) return;
 
-      socketService.socket.on('user-left', (userId: string) => {
-        console.log('User left:', userId);
-        
-        // Clean up peer connection
-        if (peerConnections[userId]) {
-          peerConnections[userId].close();
-          setPeerConnections(prev => {
-            const newConnections = { ...prev };
-            delete newConnections[userId];
-            return newConnections;
-          });
-        }
-        
-        setParticipants(prev => prev.filter(id => id !== userId));
-      });
+    socket.on('user-joined', handleUserJoined);
+    socket.on('user-left', handleUserLeft);
 
-      return () => {
-        socketService.socket?.off('user-joined');
-        socketService.socket?.off('user-left');
-      };
-    }
-  }, [socketService.socket, localStream, peerConnections]);
+    return () => {
+      socket.off('user-joined', handleUserJoined);
+      socket.off('user-left', handleUserLeft);
+    };
+  }, [localStream, handleUserJoined, handleUserLeft]);
+
+  useEffect(() => {
+    const socket = socketService.initSocket();
+    if (!socket || !localStream) return;
+
+    socket.on('offer', handleOffer);
+    socket.on('answer', handleAnswer);
+    socket.on('ice-candidate', handleIceCandidate);
+
+    return () => {
+      socket.off('offer', handleOffer);
+      socket.off('answer', handleAnswer);
+      socket.off('ice-candidate', handleIceCandidate);
+    };
+  }, [localStream, handleOffer, handleAnswer, handleIceCandidate]);
+
+  useEffect(() => {
+    const socket = socketService.initSocket();
+    if (!socket) return;
+
+    const handleChatMessage = (data: { content: string; sender: string }) => {
+      console.log('Received chat message:', data);
+      if (data.sender !== session?.user?.name) {
+        setMessages(prev => [...prev, {
+          content: data.content,
+          sender: data.sender,
+          isLocal: false
+        }]);
+      }
+    };
+
+    socket.on('chat-message', handleChatMessage);
+
+    return () => {
+      socket.off('chat-message', handleChatMessage);
+    };
+  }, [session?.user?.name]);
+
+  useEffect(() => {
+    console.log('Current messages:', messages);
+  }, [messages]);
 
   const handleStartRecording = async () => {
     if (!localStream || !recordingServiceRef.current) return;
@@ -375,58 +469,100 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
-  const toggleVideo = async () => {
+  const toggleVideo = useCallback(async () => {
+    if (!localStream) return;
+
     try {
-      if (localStream) {
-        const videoTracks = localStream.getVideoTracks();
+      const videoTracks = localStream.getVideoTracks();
+      
+      if (!isVideoOff) {
+        // Turn off video
+        videoTracks.forEach(track => {
+          track.enabled = false;
+          track.stop(); // Stop the track
+        });
         
-        if (!isVideoOff) {
-          // Turn off video
-          videoTracks.forEach(track => {
-            track.enabled = false;
-            track.stop();
+        // Remove video tracks from peer connections
+        Object.values(peerConnections).forEach(pc => {
+          const senders = pc.getSenders();
+          senders.forEach(sender => {
+            if (sender.track?.kind === 'video') {
+              pc.removeTrack(sender);
+            }
           });
-          setIsVideoOff(true);
-        } else {
-          // Turn on video
-          try {
-            const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            
-            const audioTrack = localStream.getAudioTracks()[0];
-            const updatedStream = new MediaStream([newVideoTrack, audioTrack]);
-            
-            setLocalStream(updatedStream);
-            
-            // Update video track in all peer connections
-            Object.values(peerConnections).forEach(pc => {
-              const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-              if (sender) {
-                sender.replaceTrack(newVideoTrack);
-              }
-            });
-            
-            setIsVideoOff(false);
-          } catch (error) {
-            console.error('Error reacquiring video stream:', error);
-            return; // Don't update isVideoOff if we failed to get new stream
+        });
+        
+        setIsVideoOff(true);
+        
+        // Clear video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = null;
+        }
+      } else {
+        // Turn on video
+        try {
+          const constraints = {
+            video: {
+              width: { min: 640, ideal: 1024, max: 1024 },
+              height: { min: 480, ideal: 576, max: 576 },
+              frameRate: { min: 15, ideal: 15, max: 15 },
+              facingMode: 'user'
+            }
+          };
+
+          const videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+          const newVideoTrack = videoStream.getVideoTracks()[0];
+          
+          // Create a new stream with the video track and existing audio track
+          const audioTrack = localStream.getAudioTracks()[0];
+          const updatedStream = new MediaStream();
+          if (audioTrack) updatedStream.addTrack(audioTrack);
+          updatedStream.addTrack(newVideoTrack);
+          
+          // Update local state and video element
+          setLocalStream(updatedStream);
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = updatedStream;
           }
+
+          // Update peer connections
+          Object.values(peerConnections).forEach(pc => {
+            const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (videoSender) {
+              videoSender.replaceTrack(newVideoTrack);
+            } else {
+              pc.addTrack(newVideoTrack, updatedStream);
+            }
+          });
+
+          setIsVideoOff(false);
+        } catch (error) {
+          console.error('Error turning on video:', error);
+          setIsVideoOff(true);
         }
       }
     } catch (error) {
       console.error('Error toggling video:', error);
     }
-  };
+  }, [localStream, isVideoOff, peerConnections]);
 
-  const handleToggleAudio = () => {
+  const handleToggleAudio = useCallback(() => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
+        
+        // Notify peer connections of audio state
+        Object.values(peerConnections).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+          if (sender) {
+            sender.track!.enabled = audioTrack.enabled;
+          }
+        });
       }
     }
-  };
+  }, [localStream, peerConnections]);
 
   const handleToggleWhiteboard = () => {
     setShowWhiteboard(!showWhiteboard);
@@ -455,32 +591,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
-  useEffect(() => {
-    if (socketService.socket) {
-      console.log('Setting up chat message listener');
-      
-      socketService.socket.on('chat-message', (data: { content: string; sender: string }) => {
-        console.log('Received chat message:', data);
-        if (data.sender !== session?.user?.name) { // Don't add our own messages twice
-          setMessages(prev => [...prev, {
-            content: data.content,
-            sender: data.sender,
-            isLocal: false
-          }]);
-        }
-      });
-
-      return () => {
-        console.log('Cleaning up chat message listener');
-        socketService.socket?.off('chat-message');
-      };
-    }
-  }, [socketService.socket, session?.user?.name]);
-
-  useEffect(() => {
-    console.log('Current messages:', messages);
-  }, [messages]);
-
   const generateSummary = async () => {
     setIsSummarizing(true);
     try {
@@ -502,6 +612,61 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     }
   };
 
+  const handleEndMeeting = async () => {
+    if (!currentMeeting?.id || isEndingRef.current) return;
+    isEndingRef.current = true;
+
+    try {
+      // Stop all media tracks
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      // Stop recording if active
+      if (isRecording && recordingServiceRef.current) {
+        await handleStopRecording();
+      }
+
+      // Stop transcription if active
+      if (isTranscribing && transcriptionService) {
+        transcriptionService.stop();
+      }
+
+      // Disconnect all peer connections
+      Object.values(peerConnections).forEach(pc => pc.close());
+      setPeerConnections({});
+
+      // Send end meeting request to server
+      const response = await fetch(`/api/meetings/${currentMeeting.id}/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          transcript: transcripts.join('\n')
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to end meeting');
+      }
+
+      // Clean up socket connection
+      socketService.disconnect();
+
+      // Navigate back to dashboard
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error ending meeting:', error);
+      // Stay on the page if there's an error
+      isEndingRef.current = false;
+      return;
+    }
+
+    // Only set to false if we successfully ended the meeting
+    isEndingRef.current = false;
+  };
+
   return (
     <div className="relative h-full w-full">
       <div className="absolute inset-0 bg-[#1a1b1e] rounded-2xl overflow-hidden">
@@ -518,14 +683,47 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
             >
-              <ParticipantVideo
-                participantId={peerId}
-                layout="grid"
-                stream={localStream}
-                isLocal={true}
-                isVideoOff={isVideoOff}
-                profileImage={session?.user?.image || undefined}
-              />
+              <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
+                {isVideoOff ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/95">
+                    <div className="text-center">
+                      <div className="w-24 h-24 mx-auto mb-4 relative rounded-full overflow-hidden ring-4 ring-indigo-500/30">
+                        {session?.user?.image ? (
+                          <Image
+                            src={session.user.image}
+                            alt={session.user.name || 'User'}
+                            layout="fill"
+                            objectFit="cover"
+                            className="rounded-full"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-indigo-500 flex items-center justify-center">
+                            <span className="text-2xl font-semibold text-white">
+                              {session?.user?.name?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-sm font-medium">
+                        Camera is turned off
+                      </p>
+                      <p className="text-gray-500 text-xs mt-1">
+                        {session?.user?.name || 'User'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover transform ${
+                      isVideoOff ? 'scale-x-0' : 'scale-x-100'
+                    } transition-transform duration-300`}
+                  />
+                )}
+              </div>
             </motion.div>
             
             {participants.map((participantId, index) => (
@@ -611,24 +809,17 @@ export default function VideoCall({ peerId }: VideoCallProps) {
           <VideoControls
             localStream={localStream}
             onEndCall={handleEndCall}
-            onToggleAudio={handleToggleAudio}
-            onToggleVideo={toggleVideo}
-            isMuted={isMuted}
             isVideoOff={isVideoOff}
-            showChat={showChat}
-            onToggleChat={() => setShowChat(!showChat)}
+            isMuted={isMuted}
+            onToggleVideo={toggleVideo}
+            onToggleAudio={handleToggleAudio}
             onToggleTranscription={handleToggleTranscription}
             isTranscribing={isTranscribing}
-            onStartRecording={handleStartRecording}
+            onToggleRecording={handleStartRecording}
             onStopRecording={handleStopRecording}
             isRecording={isRecording}
             onToggleWhiteboard={handleToggleWhiteboard}
             showWhiteboard={showWhiteboard}
-            stream={localStream}
-            currentMeeting={peerId}
-            endMeeting={handleEndCall}
-            onGenerateSummary={generateSummary}
-            isSummarizing={isSummarizing}
           />
         </motion.div>
 

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { CalendarService } from '@/services/CalendarService';
 import { socketService } from '@/services/socketService';
 import { motion } from 'framer-motion';
@@ -17,6 +17,22 @@ export default function Calendar({ onEventClick }: CalendarProps) {
   const socket = socketService.getSocket();
   const calendarService = new CalendarService(socket!);
 
+  const loadEvents = useCallback(async () => {
+    const start = new Date();
+    start.setMonth(start.getMonth() - 1);
+    const end = new Date();
+    end.setMonth(end.getMonth() + 2);
+
+    try {
+      const response = await fetch(`/api/calendar/events?start=${start.toISOString()}&end=${end.toISOString()}`);
+      if (!response.ok) throw new Error('Failed to fetch events');
+      const data = await response.json();
+      setEvents(data);
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadEvents();
     
@@ -26,17 +42,7 @@ export default function Calendar({ onEventClick }: CalendarProps) {
         socket.off('calendar-event-added', handleNewEvent);
       };
     }
-  }, [socket]);
-
-  const loadEvents = async () => {
-    const start = new Date();
-    const end = new Date();
-    end.setMonth(end.getMonth() + 1);
-    
-    const fetchedEvents = await calendarService.getEvents(start, end);
-    setEvents(fetchedEvents);
-    setLoading(false);
-  };
+  }, [socket, loadEvents]);
 
   const handleNewEvent = (event: any) => {
     setEvents(prev => [...prev, event]);
@@ -101,4 +107,4 @@ export default function Calendar({ onEventClick }: CalendarProps) {
       </div>
     </motion.div>
   );
-} 
+}

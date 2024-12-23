@@ -99,6 +99,16 @@ export default function ParticipantVideo({
           autoPlay
           playsInline
           muted={isLocal}
+          style={{
+            transform: 'scale(1)',
+            WebkitTransform: 'scale(1)',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
           className={`w-full h-full ${layout === 'spotlight' ? 'object-cover' : 'object-contain'}`}
         />
       )}

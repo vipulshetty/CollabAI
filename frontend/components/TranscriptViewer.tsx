@@ -1,4 +1,3 @@
-
 'use client';
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -46,20 +45,13 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef(socketService);
 
   useEffect(() => {
-    const socket = socketRef.current.getSocket();
-    
-    // Only initialize socket if we don't have an active connection
-    if (!socket?.connected) {
-      socketRef.current.getSocket();
-    }
-    
+    const socket = socketRef.current;
     return () => {
-      // Only disconnect if we're not in the middle of a meeting
-      if (!currentMeeting) {
-        socketRef.current.disconnect();
+      if (socket) {
+        socket.disconnect();
       }
     };
-  }, [currentMeeting]);
+  }, []);
 
   useEffect(() => {
     fetchMeetings();

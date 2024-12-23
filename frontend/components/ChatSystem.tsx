@@ -32,14 +32,11 @@ export default function ChatSystem({
   }, [messages]);
 
   useEffect(() => {
-    console.log('Messages prop updated:', messages);
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Submitting message:', newMessage);
     if (newMessage.trim()) {
-      console.log('Calling onSendMessage with:', newMessage.trim());
       onSendMessage(newMessage.trim());
       setNewMessage('');
     }
@@ -54,30 +51,27 @@ export default function ChatSystem({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {messages.map((message, index) => {
-          console.log('Rendering message:', message);
-          return (
+        {messages.map((message, index) => (
+          <div
+            key={`${message.content}-${message.sender}-${index}`}
+            className={`flex ${
+              message.isLocal ? 'justify-end' : 'justify-start'
+            }`}
+          >
             <div
-              key={index}
-              className={`flex ${
-                message.isLocal ? 'justify-end' : 'justify-start'
+              className={`max-w-[85%] px-3 py-1.5 rounded-lg text-sm ${
+                message.isLocal
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-white'
               }`}
             >
-              <div
-                className={`max-w-[85%] px-3 py-1.5 rounded-lg text-sm ${
-                  message.isLocal
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-white'
-                }`}
-              >
-                <p className="break-words">{message.content}</p>
-                <span className="text-xs opacity-75 mt-0.5 block">
-                  {message.sender}
-                </span>
-              </div>
+              <p className="break-words">{message.content}</p>
+              <span className="text-xs opacity-75 mt-0.5 block">
+                {message.sender}
+              </span>
             </div>
-          );
-        })}
+          </div>
+        ))}
 
         {/* Transcripts */}
         {transcripts.length > 0 && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +31,9 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
 
-  const fetchTranscripts = async () => {
+  const fetchTranscripts = useCallback(async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('meeting_transcripts')
         .select('*')
@@ -41,7 +42,7 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
 
       if (error) throw error;
       setTranscripts(data || []);
-      
+
       // Set summary if any transcript has it
       const existingSummary = data?.find(t => t.summary)?.summary;
       if (existingSummary) {
@@ -49,8 +50,10 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch transcripts');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [meetingId, setLoading, setTranscripts, setSummary, setError]);
 
   useEffect(() => {
     if (open) {
@@ -77,7 +80,7 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
         channel.unsubscribe();
       };
     }
-  }, [meetingId, open]);
+  }, [open, meetingId, fetchTranscripts]);
 
   const handleGenerateSummary = async () => {
     if (summary) {
@@ -98,7 +101,7 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
 
       const { summary: newSummary } = await response.json();
       setSummary(newSummary);
-      
+
       // Refresh transcripts to get updated summary
       fetchTranscripts();
     } catch (err) {

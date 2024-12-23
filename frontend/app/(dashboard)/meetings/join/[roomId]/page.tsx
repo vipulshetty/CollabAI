@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
-import { useMeeting } from '@/contexts/MeetingContext';
+import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoCall from '@/components/VideoCall';
 import ParticipantList from '@/components/ParticipantList';
 import MeetingTimer from '@/components/MeetingTimer';
@@ -13,7 +13,7 @@ import TabButton from '@/components/TabButton';
 export default function MeetingRoomPage() {
   const params = useParams();
   const router = useRouter();
-  const { currentMeeting, joinMeeting, endMeeting } = useMeeting();
+  const { currentMeeting, joinMeeting, endMeeting } = useMeetingContext();
   const [isLoading, setIsLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);

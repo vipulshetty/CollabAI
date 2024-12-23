@@ -3,7 +3,7 @@ import { AuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 
-export const authOptions: AuthOptions = {
+const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -48,8 +48,7 @@ export const authOptions: AuthOptions = {
       return token;
     }
   },
-  debug: process.env.NODE_ENV === 'development',
-  secret: process.env.NEXTAUTH_SECRET
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const handler = NextAuth(authOptions);

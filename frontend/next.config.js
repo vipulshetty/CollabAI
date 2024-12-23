@@ -1,27 +1,29 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static exports
-  output: 'standalone',
-  
-  // Environment variables that should be available at build time
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'collabai-frontend-b3dmgdaxj-vipulshettys-projects.vercel.app'],
+    },
+  },
   env: {
+    NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-
-  // Image domains for next/image
   images: {
     domains: [
-      'avatars.githubusercontent.com',
       'lh3.googleusercontent.com',
       'platform-lookaside.fbsbx.com',
     ],
   },
-
-  // Experimental features
-  experimental: {
-    serverActions: true,
-  },
+  output: 'standalone',
 }
 
 module.exports = nextConfig

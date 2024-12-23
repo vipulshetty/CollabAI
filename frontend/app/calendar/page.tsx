@@ -2,13 +2,13 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Calendar from '@/components/Calendar';
-import { MeetingProvider, useMeeting } from '@/contexts/MeetingContext';
+import { MeetingProvider, useMeetingContext } from '@/contexts/MeetingContext';
 import { motion } from 'framer-motion';
-import { Video } from 'lucide-react';
+import { Video, Clock } from 'lucide-react';
 
 function CalendarContent() {
   const router = useRouter();
-  const { scheduledMeetings } = useMeeting();
+  const { scheduledMeetings } = useMeetingContext();
   const [upcomingMeetings, setUpcomingMeetings] = useState([]);
 
   useEffect(() => {

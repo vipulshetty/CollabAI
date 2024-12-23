@@ -1,72 +1,34 @@
-'use client'
+'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function VideoCallLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      useRouter().push('/auth/signin');
+      router.push('/auth/signin');
     }
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  useEffect(() => {
-    const setupVideoCallLayout = () => {
-      // Apply minimal layout adjustments without forcing fullscreen
-      const root = document.documentElement;
-      root.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      document.body.style.margin = '0';
-      document.body.style.padding = '0';
-      
-      // Add fullscreen change listener
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-      
-      return () => {
-        // Cleanup
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-        root.style.overflow = '';
-        document.body.style.overflow = '';
-        document.body.style.margin = '';
-        document.body.style.padding = '';
-      };
-    };
-
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-
-    return setupVideoCallLayout();
-  }, []);
-
-  if (status === 'loading') {
+  if (status === "loading") {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="relative min-h-screen bg-black"
-    >
-      <div className="relative w-full h-full">
-        {children}
-      </div>
-    </motion.div>
+    <div className={`min-h-screen bg-background ${isFullscreen ? 'fullscreen' : ''}`}>
+      {children}
+    </div>
   );
 }

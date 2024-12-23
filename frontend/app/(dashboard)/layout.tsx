@@ -1,8 +1,12 @@
 'use client';
+
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import Navbar from '@/components/Navbar';
+import { Users } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Video, BarChart2, Calendar, Users, Settings, LogOut, PieChart, Bell } from 'lucide-react';
+import { Video, BarChart2, Calendar, Users as UsersIcon, Settings, LogOut, PieChart, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
 import { MeetingProvider } from '@/contexts/MeetingContext';
@@ -30,25 +34,31 @@ const shakeAnimation = {
   }
 };
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+const OnUnauthenticated = () => {
+  const router = useRouter();
+  useEffect(() => {
+    router.push('/auth/signin');
+  }, [router]);
+  return null;
+};
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      useRouter().push('/auth/signin');
+      router.push('/auth/signin');
     }
   });
-  const router = useRouter();
 
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-2xl text-gray-600"
-        >
-          Loading...
-        </motion.div>
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-gray-900"></div>
       </div>
     );
   }
