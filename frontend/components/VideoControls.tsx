@@ -1,232 +1,185 @@
 'use client';
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+
 import { 
   Mic, 
   MicOff, 
   Video, 
   VideoOff, 
-  MonitorUp,
-  MonitorOff,
-  PhoneOff,
-  ChevronUp,
-  ChevronDown,
   MessageCircle,
-  Users,
-  BarChart2,
-  FileText,
+  PhoneOff,
+  Pencil,
   CircleDot,
   StopCircle,
-  Edit3,
-  Headphones
+  FileText,
+  Loader2
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface VideoControlsProps {
   localStream: MediaStream | null;
-  onEndCall: () => Promise<void>;
-  onScreenShare: () => void;
-  isScreenSharing: boolean;
+  onEndCall: () => void;
+  onToggleAudio: () => void;
+  onToggleVideo: () => void;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  showChat: boolean;
+  onToggleChat: () => void;
+  onToggleTranscription: () => void;
+  isTranscribing: boolean;
   onStartRecording: () => void;
   onStopRecording: () => void;
   isRecording: boolean;
-  onToggleAnalytics: () => void;
-  showAnalytics: boolean;
-  onToggleSummary: () => void;
-  showSummary: boolean;
-  showChat: boolean;
-  onToggleChat: () => void;
-  showBreakoutRooms: boolean;
-  onToggleBreakoutRooms: () => void;
-  isMuted: boolean;
-  isVideoOff: boolean;
-  onToggleAudio: () => void;
-  onToggleVideo: () => void;
   onToggleWhiteboard: () => void;
   showWhiteboard: boolean;
-  onToggleTranscription: () => void;
-  isTranscribing: boolean;
   stream: MediaStream | null;
+  currentMeeting: string;
+  endMeeting: () => void;
+  onGenerateSummary: () => void;
+  isSummarizing: boolean;
 }
 
-const VideoControls = ({ 
-  localStream, 
-  onEndCall, 
-  onScreenShare,
-  isScreenSharing,
+export default function VideoControls({
+  onEndCall,
+  onToggleAudio,
+  onToggleVideo,
+  isMuted,
+  isVideoOff,
+  showChat,
+  onToggleChat,
+  onToggleWhiteboard,
+  showWhiteboard,
   onStartRecording,
   onStopRecording,
   isRecording,
-  onToggleAnalytics,
-  showAnalytics,
-  onToggleSummary,
-  showSummary,
-  showChat,
-  onToggleChat,
-  showBreakoutRooms,
-  onToggleBreakoutRooms,
-  isMuted,
-  isVideoOff,
-  onToggleAudio,
-  onToggleVideo,
-  onToggleWhiteboard,
-  showWhiteboard,
-  onToggleTranscription,
-  isTranscribing,
-  stream
-}: VideoControlsProps) => {
-  const [showMoreControls, setShowMoreControls] = useState(false);
-
-  const handleEndCall = async () => {
-    try {
-      // Stop recording if it's active
-      if (isRecording) {
-        await onStopRecording();
-      }
-
-      // Stop transcription if it's active
-      if (isTranscribing) {
-        onToggleTranscription();
-      }
-
-      // Wait a moment for cleanup
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Call the endMeeting function from props
-      await onEndCall();
-    } catch (error) {
-      console.error('Error ending meeting:', error);
-      // Don't throw here, just log the error
-    }
-  };
-
+  onGenerateSummary,
+  isSummarizing
+}: VideoControlsProps) {
   return (
-    <motion.div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-4">
-      <AnimatePresence>
-        {showMoreControls && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="bg-black/80 backdrop-blur-md rounded-2xl p-4 shadow-lg grid grid-cols-3 gap-3 mb-4"
-          >
-            <ControlButton
-              onClick={onToggleChat}
-              isActive={showChat}
-              icon={<MessageCircle />}
-              label="Chat"
-            />
-            <ControlButton
-              onClick={onToggleBreakoutRooms}
-              isActive={showBreakoutRooms}
-              icon={<Users />}
-              label="Breakout"
-            />
-            <ControlButton
-              onClick={onToggleAnalytics}
-              isActive={showAnalytics}
-              icon={<BarChart2 />}
-              label="Analytics"
-            />
-            <ControlButton
-              onClick={onToggleSummary}
-              isActive={showSummary}
-              icon={<FileText />}
-              label="Summary"
-            />
-            <ControlButton
-              onClick={isRecording ? onStopRecording : onStartRecording}
-              isActive={isRecording}
-              icon={isRecording ? <StopCircle /> : <CircleDot />}
-              label={isRecording ? "Stop" : "Record"}
-            />
-            <ControlButton
-              onClick={onToggleWhiteboard}
-              isActive={showWhiteboard}
-              icon={<Edit3 />}
-              label="Board"
-            />
-            <ControlButton
-              onClick={onToggleTranscription}
-              isActive={isTranscribing}
-              icon={<Headphones />}
-              label="Transcribe"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.div className="bg-black/80 backdrop-blur-md rounded-2xl p-4 shadow-lg flex items-center gap-4">
-        <ControlButton
+    <motion.div 
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      className="flex flex-col items-center gap-4"
+    >
+      <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/40 backdrop-blur-lg border border-white/10">
+        <motion.button
           onClick={onToggleAudio}
-          isActive={!isMuted}
-          icon={isMuted ? <MicOff /> : <Mic />}
-          activeColor="bg-white/20"
-          inactiveColor="bg-red-500/80"
-        />
-        <ControlButton
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl ${isMuted ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
+            {isMuted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              {isMuted ? 'Unmute' : 'Mute'}
+            </span>
+          </div>
+        </motion.button>
+
+        <motion.button
           onClick={onToggleVideo}
-          isActive={!isVideoOff}
-          icon={isVideoOff ? <VideoOff /> : <Video />}
-          activeColor="bg-white/20"
-          inactiveColor="bg-red-500/80"
-        />
-        <ControlButton
-          onClick={onScreenShare}
-          isActive={isScreenSharing}
-          icon={isScreenSharing ? <MonitorOff /> : <MonitorUp />}
-        />
-        <ControlButton
-          onClick={handleEndCall}
-          isActive={false}
-          icon={<PhoneOff />}
-          inactiveColor="bg-red-500"
-        />
-        <ControlButton
-          onClick={() => setShowMoreControls(!showMoreControls)}
-          isActive={showMoreControls}
-          icon={showMoreControls ? <ChevronDown /> : <ChevronUp />}
-        />
-      </motion.div>
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl ${isVideoOff ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
+            {isVideoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              {isVideoOff ? 'Start Video' : 'Stop Video'}
+            </span>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={onToggleChat}
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl ${showChat ? 'bg-blue-500/80 hover:bg-blue-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
+            <MessageCircle className="w-6 h-6 text-white" />
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              Chat
+            </span>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={onToggleWhiteboard}
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl ${showWhiteboard ? 'bg-blue-500/80 hover:bg-blue-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
+            <Pencil className="w-6 h-6 text-white" />
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              Whiteboard
+            </span>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={isRecording ? onStopRecording : onStartRecording}
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl ${isRecording ? 'bg-red-500/80 hover:bg-red-600/80' : 'bg-gray-800/80 hover:bg-gray-700/80'} transition-colors duration-200`}>
+            {isRecording ? <StopCircle className="w-6 h-6 text-white" /> : <CircleDot className="w-6 h-6 text-white" />}
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              {isRecording ? 'Stop Recording' : 'Start Recording'}
+            </span>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={onGenerateSummary}
+          disabled={isSummarizing}
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className={`p-3.5 rounded-xl bg-gray-800/80 hover:bg-gray-700/80 transition-colors duration-200 ${isSummarizing ? 'opacity-50' : ''}`}>
+            {isSummarizing ? (
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+            ) : (
+              <FileText className="w-6 h-6 text-white" />
+            )}
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              {isSummarizing ? 'Generating...' : 'Generate Summary'}
+            </span>
+          </div>
+        </motion.button>
+        
+        <div className="w-px h-8 bg-white/20 mx-2" />
+        
+        <motion.button
+          onClick={onEndCall}
+          className="relative group flex flex-col items-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className="p-3.5 rounded-xl bg-red-500 hover:bg-red-600 transition-colors duration-200">
+            <PhoneOff className="w-6 h-6 text-white" />
+          </div>
+          <div className="absolute -bottom-8 scale-0 group-hover:scale-100 transition-transform duration-200">
+            <span className="px-2 py-1 text-xs text-white bg-black/80 rounded-md whitespace-nowrap">
+              End Call
+            </span>
+          </div>
+        </motion.button>
+      </div>
     </motion.div>
   );
-};
-
-interface ControlButtonProps {
-  onClick: () => void;
-  isActive: boolean;
-  icon: React.ReactNode;
-  label?: string;
-  activeColor?: string;
-  inactiveColor?: string;
-  disabled?: boolean;
 }
-
-const ControlButton = ({
-  onClick,
-  isActive,
-  icon,
-  label,
-  activeColor = "bg-white/20",
-  inactiveColor = "bg-white/10",
-  disabled = false
-}: ControlButtonProps) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`
-        relative p-3 rounded-xl transition-all duration-200
-        ${isActive ? activeColor : inactiveColor}
-        hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed
-        flex flex-col items-center gap-1
-      `}
-    >
-      {icon}
-      {label && (
-        <span className="text-xs font-medium opacity-80">{label}</span>
-      )}
-    </button>
-  );
-};
-
-export default VideoControls;

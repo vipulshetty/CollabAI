@@ -35,7 +35,7 @@ export default function MeetingDetailsPage() {
         setError(null);
 
         // Ensure we have a valid ID
-        const meetingId = params?.id;
+        const meetingId = params?.meetingId;
         if (!meetingId || typeof meetingId !== 'string') {
           throw new Error('Invalid meeting ID');
         }
@@ -62,7 +62,7 @@ export default function MeetingDetailsPage() {
     };
 
     fetchMeeting();
-  }, [params?.id, router]);
+  }, [params?.meetingId, router]);
 
   if (isLoading) {
     return (

@@ -10,7 +10,10 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
   title: 'CollabAI',
-  description: 'AI-powered video conferencing platform',
+  description: 'Collaborative AI-powered video meetings',
+  icons: {
+    icon: '/vercel.svg',
+  },
 }
 
 export default async function RootLayout({
@@ -22,7 +25,14 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-gray-50 dark:bg-gray-900`}>
+      <body className={`${inter.className} ${
+        // Remove background color for video call routes
+        process.env.NODE_ENV === 'development' && 
+        typeof window !== 'undefined' && 
+        window.location.pathname.includes('/video-call') 
+          ? '' 
+          : 'bg-gray-50 dark:bg-gray-900'
+      }`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

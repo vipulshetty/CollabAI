@@ -6,7 +6,7 @@ import VideoControls from './VideoControls';
 import ParticipantVideo from './ParticipantVideo';
 import ChatSystem from './ChatSystem';
 import { socketService } from '@/services/socketService';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
 import RecordingService from '@/services/RecordingService';
 import Whiteboard from './Whiteboard';
@@ -14,6 +14,22 @@ import Whiteboard from './Whiteboard';
 interface VideoCallProps {
   peerId: string;
 }
+
+const getGridLayout = (totalParticipants: number): string => {
+  if (totalParticipants <= 1) return 'grid-cols-1';
+  if (totalParticipants === 2) return 'grid-cols-2';
+  if (totalParticipants <= 4) return 'grid-cols-2';
+  if (totalParticipants <= 6) return 'grid-cols-3';
+  if (totalParticipants <= 9) return 'grid-cols-3';
+  return 'grid-cols-4';
+};
+
+const getGridSize = (totalParticipants: number): string => {
+  if (totalParticipants <= 1) return 'h-full max-w-3xl mx-auto';
+  if (totalParticipants === 2) return 'h-full max-w-4xl mx-auto';
+  if (totalParticipants <= 4) return 'h-full max-w-5xl mx-auto';
+  return 'h-full w-full';
+};
 
 export default function VideoCall({ peerId }: VideoCallProps) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -35,6 +51,9 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const recordingServiceRef = useRef<RecordingService | null>(null);
   const socketRef = useRef<any>(null);
+  const [transcriptText, setTranscriptText] = useState<string>('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string>('');
 
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
@@ -188,6 +207,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       socket?.on('transcription', (data) => {
         console.log('Received transcription:', data);
         setTranscripts(prev => [...prev, data.transcript]);
+        handleTranscriptionResult(data);
       });
 
       socket?.on('transcription-error', (error) => {
@@ -257,6 +277,12 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       }
 
       // End meeting
+      if (!peerId) {
+        console.error('No meeting ID available');
+        router.push('/dashboard');
+        return;
+      }
+
       const response = await fetch(`/api/meetings/${peerId}/end`, {
         method: 'POST',
         headers: {
@@ -319,31 +345,144 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     setShowWhiteboard(!showWhiteboard);
   };
 
-  return (
-    <div className="relative h-screen w-full">
-      <div className="absolute inset-0 bg-[#1a1b1e]">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4">
-          <div className="relative rounded-xl overflow-hidden">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1.5 rounded-lg">
-              <span className="text-white text-sm">You</span>
-            </div>
-          </div>
-          {participants.map((participantId) => (
-            <ParticipantVideo
-              key={participantId}
-              participantId={participantId}
-            />
-          ))}
-        </div>
+  const generateSummary = async () => {
+    try {
+      setIsSummarizing(true);
+      const response = await fetch(`/api/meetings/${currentMeeting?.id}/summary`, {
+        method: 'POST'
+      });
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
+      if (!response.ok) {
+        throw new Error('Failed to generate summary');
+      }
+
+      const data = await response.json();
+      setSummary(data.summary);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const handleTranscriptionResult = (result: any) => {
+    const transcript = result.results[0]?.alternatives[0]?.transcript || '';
+    if (transcript) {
+      setTranscriptText(prev => prev + ' ' + transcript);
+    }
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      <div className="absolute inset-0 bg-[#1a1b1e] rounded-2xl overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className={`p-4 ${getGridSize(participants.length + 1)}`}
+        >
+          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-4 auto-rows-fr`}>
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+            >
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-lg"
+              >
+                <span className="text-white text-sm">You</span>
+              </motion.div>
+            </motion.div>
+            
+            {participants.map((participantId, index) => (
+              <motion.div
+                key={participantId}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
+                className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+              >
+                <ParticipantVideo
+                  participantId={participantId}
+                />
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        <AnimatePresence>
+          {showChat && socketReady && (
+            <motion.div
+              initial={{ opacity: 0, x: 300 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 300 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute top-4 right-4 bottom-24 w-80 max-w-[calc(100%-2rem)] z-50"
+            >
+              <div className="h-full flex flex-col bg-black/40 backdrop-blur-md rounded-2xl border border-white/10">
+                <div className="flex-1 overflow-hidden">
+                  <ChatSystem 
+                    socket={socketRef.current}
+                    roomId={peerId}
+                    onClose={() => setShowChat(false)}
+                    minimized={false}
+                    onMinimize={() => setShowChat(!showChat)}
+                    username="You"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {summary && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+              onClick={() => setSummary('')}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-gray-900 rounded-2xl p-6 max-w-2xl w-full space-y-4"
+                onClick={e => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-white">Meeting Summary</h3>
+                <div className="bg-black/30 rounded-xl p-4 text-gray-200 whitespace-pre-wrap">
+                  {summary}
+                </div>
+                <button
+                  onClick={() => setSummary('')}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white transition-colors"
+                >
+                  Close
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.div 
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 via-black/50 to-transparent backdrop-blur-sm"
+        >
           <VideoControls
             localStream={localStream}
             onEndCall={handleEndCall}
@@ -363,30 +502,27 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             stream={localStream}
             currentMeeting={peerId}
             endMeeting={handleEndCall}
+            onGenerateSummary={generateSummary}
+            isSummarizing={isSummarizing}
           />
-        </div>
+        </motion.div>
 
-        {showChat && socketReady && (
-          <div className="absolute right-4 bottom-20 z-50">
-            <ChatSystem 
-              socket={socketRef.current}
-              roomId={peerId}
-              onClose={() => setShowChat(false)}
-              minimized={false}
-              onMinimize={() => setShowChat(!showChat)}
-              username="You"
-            />
-          </div>
-        )}
-
-        {showWhiteboard && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-            <Whiteboard 
-              isOpen={showWhiteboard} 
-              onClose={() => setShowWhiteboard(false)} 
-            />
-          </div>
-        )}
+        <AnimatePresence>
+          {showWhiteboard && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-4 z-50 bg-black/50 backdrop-blur-md rounded-xl flex items-center justify-center"
+            >
+              <Whiteboard 
+                isOpen={showWhiteboard} 
+                onClose={() => setShowWhiteboard(false)} 
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
