@@ -1,15 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   images: {
-    domains: ['lh3.googleusercontent.com', 'avatars.githubusercontent.com'],
-    unoptimized: true
+    unoptimized: true,
   },
-  typescript: {
-    ignoreBuildErrors: true,
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_SOCKET_URL}/api/:path*`,
+      },
+    ]
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  }
 }
-
-module.exports = nextConfig

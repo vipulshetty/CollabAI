@@ -3,14 +3,55 @@ services:
     name: collabai-frontend
     env: node
     rootDir: frontend
-    buildCommand: |
-      npm install
-      npm run build
-    startCommand: |
-      npm install next@latest
-      NODE_ENV=production node server.js
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: 18.17.0
       - key: PORT
         value: 3000
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          name: collabai-backend
+          type: web
+          property: url
+      - key: NEXTAUTH_URL
+        fromService:
+          name: collabai-frontend
+          type: web
+          property: url
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+
+  - type: web
+    name: collabai-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
+      - key: PORT
+        value: 8000
+      - key: FRONTEND_URL
+        fromService:
+          name: collabai-frontend
+          type: web
+          property: url
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
