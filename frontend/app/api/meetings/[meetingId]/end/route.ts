@@ -8,13 +8,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-type RouteSegment = {
-  meetingId: string;
+type RouteContext = {
+  params: {
+    meetingId: string;
+  };
 };
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: RouteSegment }
+  context: RouteContext
 ): Promise<Response> {
   try {
     const session = await getServerSession(authConfig);
@@ -22,7 +24,7 @@ export async function POST(
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { meetingId } = params;
+    const { meetingId } = context.params;
     if (!meetingId) {
       return Response.json({ error: 'Meeting ID is required' }, { status: 400 });
     }
