@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: collabai-frontend
+    env: node
+    rootDir: frontend
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
