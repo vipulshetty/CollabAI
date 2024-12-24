@@ -10,21 +10,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000', 'collabai-frontend-b3dmgdgdaxj-vipulshettys-projects.vercel.app'],
-    },
-    appDir: true,
-  },
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-    };
-    return config;
-  },
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    missingSuspenseWithCSRBailout: false,
   }
 }
 
