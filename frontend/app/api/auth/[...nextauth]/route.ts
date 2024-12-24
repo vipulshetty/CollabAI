@@ -12,8 +12,7 @@ const authOptions: AuthOptions = {
         params: {
           prompt: "consent",
           access_type: "offline",
-          response_type: "code",
-          scope: 'openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events'
+          response_type: "code"
         }
       }
     }),
@@ -24,33 +23,46 @@ const authOptions: AuthOptions = {
   ],
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
-    error: '/auth/error',
-    verifyRequest: '/auth/verify-request',
+    error: '/auth/error'
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      return true // Allow all sign-ins
+      return true;
     },
-    async session({ session, token, user }) {
+    async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.sub as string;
-        // Add access token to session for calendar API calls
         session.accessToken = token.accessToken;
       }
       return session;
     },
-    async jwt({ token, account, profile }) {
-      // Persist the OAuth access_token to the token right after signin
+    async jwt({ token, account }) {
       if (account) {
         token.accessToken = account.access_token;
       }
       return token;
+    },
+    async redirect({ url, baseUrl }) {
+      // Use environment variable for base URL with fallback
+      const prodBaseUrl = process.env.NEXTAUTH_URL || baseUrl;
+      
+      // Handles path-relative URLs
+      if (url.startsWith('/')) {
+        return `${prodBaseUrl}${url}`;
+      }
+      // Handles fully qualified URLs
+      else if (new URL(url).origin === prodBaseUrl) {
+        return url;
+      }
+      return prodBaseUrl;
     }
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60 // 30 days
+  },
+  secret: process.env.NEXTAUTH_SECRET
 };
 
 const handler = NextAuth(authOptions);
-
 export { handler as GET, handler as POST };

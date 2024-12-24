@@ -10,16 +10,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    serverActions: true,
-    missingSuspenseWithCSRBailout: false,
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/dashboard',
-        destination: '/app/dashboard/page',
-      },
-    ]
+    serverActions: true
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,

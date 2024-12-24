@@ -1,17 +1,12 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authConfig } from '@/lib/auth/auth-config';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth-config";
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authConfig);
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -39,6 +34,13 @@ export async function GET(request: Request) {
     }
 
     // Fetch meetings data
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+    if (!supabase) {
+      throw new Error('Supabase URL or anon key is missing');
+    }
+
     const { data: meetings, error: meetingsError } = await supabase
       .from('meetings')
       .select('*, meeting_transcripts(*)')
@@ -268,3 +270,5 @@ function calculateEngagementScore(data: any) {
     (messageScore * messageWeight)
   );
 }
+
+import { createClient } from '@supabase/supabase-js';
