@@ -20,7 +20,7 @@ const container = {
   }
 };
 
-export function DashboardClient() {
+export default function DashboardClient() {
   const { meetings, fetchMeetings, loading } = useMeetingContext();
   const router = useRouter();
   const [recentMeetings, setRecentMeetings] = useState<Meeting[]>([]);
