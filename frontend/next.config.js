@@ -6,7 +6,15 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true
-  }
+  },
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000']
+    }
+  },
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  reactStrictMode: true,
+  swcMinify: true
 }
 
 module.exports = nextConfig

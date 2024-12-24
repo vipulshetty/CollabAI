@@ -1,15 +1,9 @@
 {
   "version": 2,
-  "framework": "nextjs",
   "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "regions": ["bom1"],
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
+  "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_SOCKET_URL": "https://collabai-backend.onrender.com",
     "NEXTAUTH_URL": "https://frontend-hnq7msrg1-teaminvincibles45-gmailcoms-projects.vercel.app",
