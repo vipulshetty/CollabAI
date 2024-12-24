@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --no-lint",
-    "start": "./node_modules/.bin/next start -p $PORT",
+    "start": "node server.js",
     "lint": "next lint"
   },
   "dependencies": {
