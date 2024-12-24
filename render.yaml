@@ -3,10 +3,19 @@ services:
     name: collabai-frontend
     env: node
     rootDir: frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: |
+      npm cache clean --force
+      rm -rf node_modules
+      rm -rf .next
+      npm install
+      npm run build
+    startCommand: |
+      npm install next@latest
+      node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3000
+      - key: NODE_VERSION
+        value: 18.17.0
