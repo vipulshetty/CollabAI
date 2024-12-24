@@ -3,15 +3,10 @@ services:
     name: collabai-frontend
     env: node
     rootDir: frontend
-    buildCommand: |
-      npm install
-      npm run build
-      cp -r .next /opt/render/project/
-    startCommand: |
-      cp -r /opt/render/project/.next .
-      npx next start -p 10000
+    buildCommand: npm install
+    startCommand: npm run build && npx next start -p $PORT
     envVars:
       - key: NODE_VERSION
         value: 18.17.0
       - key: PORT
-        value: 10000
+        value: 3000
