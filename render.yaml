@@ -4,7 +4,7 @@ services:
     env: node
     rootDir: frontend
     buildCommand: npm install && npm run build
-    startCommand: ./node_modules/.bin/next start
+    startCommand: npx next start
     envVars:
       - key: NODE_VERSION
         value: 18.17.0
