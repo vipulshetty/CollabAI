@@ -3,9 +3,8 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { Users } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Video, BarChart2, Calendar, Users as UsersIcon, Settings, LogOut, PieChart, Bell } from 'lucide-react';
+import { Video, BarChart2, Calendar, Settings, LogOut, PieChart, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
 import { MeetingProvider } from '@/contexts/MeetingContext';
@@ -95,9 +94,9 @@ export default function DashboardLayout({
                 <div className="hidden md:flex ml-10 space-x-1">
                   {[
                     { href: '/dashboard', icon: <BarChart2 className="w-4 h-4" />, label: 'Dashboard' },
+                    { href: '/dashboard/meetings/create', icon: <Video className="w-4 h-4" />, label: 'New Meeting' },
+                    { href: '/dashboard/meetings/upcoming', icon: <Calendar className="w-4 h-4" />, label: 'Upcoming' },
                     { href: '/dashboard/analytics', icon: <PieChart className="w-4 h-4" />, label: 'Analytics' },
-                    { href: '/dashboard/meetings', icon: <Video className="w-4 h-4" />, label: 'Meetings' },
-                    { href: '/dashboard/schedule', icon: <Calendar className="w-4 h-4" />, label: 'Schedule' },
                   ].map((item) => (
                     <Link
                       key={item.href}
@@ -163,7 +162,7 @@ export default function DashboardLayout({
           </div>
         </nav>
 
-        <main className="pt-16">
+        <main className="pt-20 min-h-screen bg-gray-50 dark:bg-gray-900">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             {children}
           </div>

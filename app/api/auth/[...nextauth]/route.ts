@@ -3,6 +3,13 @@ import { AuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 
+// Log the client ID being used
+if (process.env.GOOGLE_CLIENT_ID) {
+  console.log('Using Google Client ID:', process.env.GOOGLE_CLIENT_ID.substring(0, 8) + '...');
+} else {
+  console.error('Google Client ID is not set!');
+}
+
 const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
@@ -13,7 +20,7 @@ const authOptions: AuthOptions = {
           prompt: "consent",
           access_type: "offline",
           response_type: "code",
-          scope: 'openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events'
+          scope: "openid email profile"
         }
       }
     }),
@@ -22,6 +29,7 @@ const authOptions: AuthOptions = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET!
     })
   ],
+  debug: true,
   pages: {
     signIn: '/auth/signin',
     signUp: '/auth/signup',
@@ -30,21 +38,18 @@ const authOptions: AuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      return true // Allow all sign-ins
+      console.log('Sign in attempt:', { user, account, profile });
+      return true;
     },
-    async session({ session, token, user }) {
+    async session({ session, token }) {
+      console.log('Session callback:', { session, token });
       if (session?.user) {
         session.user.id = token.sub as string;
-        // Add access token to session for calendar API calls
-        session.accessToken = token.accessToken;
       }
       return session;
     },
-    async jwt({ token, account, profile }) {
-      // Persist the OAuth access_token to the token right after signin
-      if (account) {
-        token.accessToken = account.access_token;
-      }
+    async jwt({ token, account }) {
+      console.log('JWT callback:', { token, account });
       return token;
     }
   },

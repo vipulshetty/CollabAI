@@ -21,6 +21,7 @@ export default function SignInPage() {
   useEffect(() => {
     const error = searchParams.get('error')
     if (error) {
+      console.error('Auth error from URL:', error);
       toast.error(
         error === 'OAuthSignin' 
           ? 'Could not sign in with this provider. Please try again.' 
@@ -33,21 +34,33 @@ export default function SignInPage() {
     try {
       setIsLoading(prev => ({ ...prev, [provider]: true }))
       
-      // Get the callbackUrl from the URL or use default
       const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+      
+      console.log('Starting sign in...', {
+        provider,
+        callbackUrl,
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+        FRONTEND_URL: process.env.FRONTEND_URL
+      });
       
       const result = await signIn(provider, {
         callbackUrl,
-        redirect: false,
+        redirect: true
       })
       
-      if (result?.error) {
-        toast.error('Authentication failed. Please try again.')
-      } else if (result?.url) {
-        router.push(result.url)
+      if (result) {
+        console.log('Sign in result:', result);
+        if (result.error) {
+          console.error('Sign in error:', result.error);
+          toast.error(`Authentication failed: ${result.error}`);
+        } else if (result.url) {
+          console.log('Redirecting to:', result.url);
+          router.push(result.url);
+        }
       }
     } catch (error) {
-      toast.error('Something went wrong. Please try again.')
+      console.error('Sign in error:', error);
+      toast.error('Something went wrong. Please try again.');
     } finally {
       setIsLoading(prev => ({ ...prev, [provider]: false }))
     }
@@ -55,10 +68,8 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950 flex flex-col items-center justify-center p-4">
-      {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-black/[0.02] dark:bg-grid-white/[0.02] bg-center pointer-events-none" />
       
-      {/* Gradient Blur */}
       <div className="absolute inset-0">
         <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
           <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-blue-500 to-indigo-500 opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]" />
