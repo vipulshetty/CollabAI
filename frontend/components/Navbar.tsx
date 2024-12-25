@@ -19,7 +19,7 @@ export default function Navbar() {
 
   const menuItems = [
     {
-      label: 'New Meeting',
+      label: 'New Meeting (Test)',
       href: '/dashboard/meetings/create',
       icon: Plus
     },
