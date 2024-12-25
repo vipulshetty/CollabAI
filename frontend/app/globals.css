@@ -185,6 +185,29 @@ h1, h2 {
   animation: float 3s ease-in-out infinite;
 }
 
+@keyframes gradient-xy {
+  0% {
+    background-position: 0% 50%, 50% 0%;
+  }
+  25% {
+    background-position: 100% 50%, 50% 100%;
+  }
+  50% {
+    background-position: 0% 50%, 50% 0%;
+  }
+  75% {
+    background-position: 100% 50%, 50% 100%;
+  }
+  100% {
+    background-position: 0% 50%, 50% 0%;
+  }
+}
+
+.animate-gradient-xy {
+  animation: gradient-xy 15s ease infinite;
+  background-size: 400% 400%;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

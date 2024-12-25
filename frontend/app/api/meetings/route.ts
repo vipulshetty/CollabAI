@@ -28,7 +28,7 @@ export async function GET() {
         meeting_url,
         description
       `)
-      .or(`created_by.eq.${session.user.email},participants.cs.["${session.user.email}"]`)
+      .or(`created_by.eq.${session.user.email},participants.cs.{${session.user.email}}`)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -54,9 +54,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    console.log('Received meeting creation request:', body);
-
-    const { title, description, status, scheduled_date, meeting_url } = body;
+    const { title, description, status, scheduled_date } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -64,16 +62,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    console.log('Creating meeting with data:', {
-      title,
-      status: status || 'scheduled',
-      scheduled_date,
-      created_by: session.user.email,
-      participants: [session.user.email],
-      meeting_url,
-      description
-    });
 
     const { data: meeting, error } = await supabase
       .from('meetings')
@@ -83,26 +71,24 @@ export async function POST(request: Request) {
         scheduled_date: scheduled_date || new Date().toISOString(),
         created_by: session.user.email,
         participants: [session.user.email],
-        meeting_url: meeting_url || null,
-        description: description || ''
+        description: description || '',
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Supabase error details:', error);
+      console.error('Supabase error:', error);
       return NextResponse.json(
         { error: error.message || 'Failed to create meeting' },
         { status: 500 }
       );
     }
 
-    console.log('Successfully created meeting:', meeting);
     return NextResponse.json({ meeting });
   } catch (error) {
-    console.error('Detailed error in POST /api/meetings:', error);
+    console.error('Error in POST /api/meetings:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal Server Error' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

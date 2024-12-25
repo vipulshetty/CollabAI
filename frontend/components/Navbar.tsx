@@ -8,13 +8,7 @@ import { motion } from 'framer-motion';
 import { 
   Video, 
   Settings, 
-  LogOut, 
-  Menu, 
-  X, 
-  User,
-  Calendar,
-  MessageSquare,
-  Bell,
+  Plus,
   BarChart3
 } from 'lucide-react';
 
@@ -22,43 +16,17 @@ export default function Navbar() {
   const { data: session } = useSession();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-  const notifications = [
-    {
-      id: 1,
-      title: 'New Meeting Scheduled',
-      message: 'Team Sync at 3 PM',
-      time: '1 hour ago'
-    },
-    {
-      id: 2,
-      title: 'Meeting Summary Ready',
-      message: 'Project Review summary is ready',
-      time: '2 hours ago'
-    }
-  ];
 
   const menuItems = [
     {
-      label: 'Dashboard',
-      href: '/dashboard',
-      icon: Calendar
-    },
-    {
-      label: 'Meetings',
-      href: '/meetings',
-      icon: Video
+      label: 'New Meeting',
+      href: '/dashboard/meetings/create',
+      icon: Plus
     },
     {
       label: 'Analytics',
       href: '/dashboard/analytics',
       icon: BarChart3
-    },
-    {
-      label: 'Messages',
-      href: '/messages',
-      icon: MessageSquare
     },
     {
       label: 'Settings',
@@ -98,90 +66,47 @@ export default function Navbar() {
                 <span>{item.label}</span>
               </Link>
             ))}
-
-            {/* Notifications */}
-            {session && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <Bell className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
-                    2
-                  </span>
-                </button>
-
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                      >
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {notification.title}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {notification.message}
-                        </div>
-                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                          {notification.time}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* User Menu */}
-            {session ? (
-              <div className="relative">
-                <button className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                  <User className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                  <span className="text-gray-700 dark:text-gray-300">{session.user?.name}</span>
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/auth/signin"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Sign In
-              </Link>
-            )}
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            {isOpen ? (
-              <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            ) : (
-              <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            )}
-          </button>
+          {/* Mobile Navigation */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              {isOpen ? (
+                <motion.div
+                  initial={{ rotate: 0 }}
+                  animate={{ rotate: 90 }}
+                >
+                  <Plus className="w-6 h-6" />
+                </motion.div>
+              ) : (
+                <Plus className="w-6 h-6" />
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Navigation */}
+        {/* Mobile Menu */}
         {isOpen && (
-          <div className="md:hidden py-4">
-            {session && menuItems.map((item) => (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="md:hidden py-2"
+          >
+            {menuItems.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}
-                className="flex items-center space-x-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 onClick={() => setIsOpen(false)}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                <item.icon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                <span className="text-gray-700 dark:text-gray-300">{item.label}</span>
+                <item.icon className="w-4 h-4" />
+                <span>{item.label}</span>
               </Link>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
     </nav>
