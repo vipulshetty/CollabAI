@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Video, Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export default function SignInPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,12 +21,15 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
+  // Get redirect URL from query params
+  const redirectTo = searchParams.get('next') || '/protected/dashboard'
+
   // Redirect if already signed in
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/protected/dashboard')
+      router.push(redirectTo)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, redirectTo])
 
   // Show loading while checking authentication
   if (authLoading) {
@@ -60,7 +64,7 @@ export default function SignInPage() {
         toast.success('Signed in successfully!')
         // Add a small delay to ensure auth state updates
         setTimeout(() => {
-          router.push('/protected/dashboard')
+          router.push(redirectTo)
         }, 100)
       }
     } catch (error) {

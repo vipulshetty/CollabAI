@@ -15,7 +15,10 @@ export default function VideoCallLayout({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/auth/signin');
+      // Preserve the current meeting URL for redirect after sign-in
+      const currentPath = window.location.pathname;
+      const redirectUrl = `/auth/signin?next=${encodeURIComponent(currentPath)}`;
+      router.push(redirectUrl);
     }
   }, [user, loading, router]);
 

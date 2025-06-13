@@ -32,6 +32,32 @@ export const authOptions: AuthOptions = {
       console.log('Sign in attempt:', { user, account, profile });
       return true;
     },
+    async redirect({ url, baseUrl }) {
+      // Handle redirect after sign-in
+      console.log('Redirect callback:', { url, baseUrl });
+
+      // If there's a 'next' parameter in the URL, redirect there
+      if (url.includes('next=')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        const nextUrl = urlParams.get('next');
+        if (nextUrl && nextUrl.startsWith('/')) {
+          return `${baseUrl}${decodeURIComponent(nextUrl)}`;
+        }
+      }
+
+      // If the URL is relative and starts with /, use it
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+
+      // If the URL is from the same origin, use it
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+
+      // Default to dashboard
+      return `${baseUrl}/protected/dashboard`;
+    },
     async session({ session, token }) {
       console.log('Session callback:', { session, token });
       if (session?.user) {
