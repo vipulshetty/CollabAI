@@ -61,8 +61,10 @@ const nextConfig = {
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
 
-  // External packages for server components
-  serverExternalPackages: ['simple-peer', 'socket.io'],
+  // External packages for server components (Next.js 14 uses experimental.serverComponentsExternalPackages)
+  experimental: {
+    serverComponentsExternalPackages: ['simple-peer', 'socket.io'],
+  },
 
   // TypeScript and type checking
   typescript: {

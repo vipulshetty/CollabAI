@@ -8,8 +8,6 @@ if (process.env.GOOGLE_CLIENT_ID) {
   console.error('Google Client ID is not set!');
 }
 
-export { authOptions };
-
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
