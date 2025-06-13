@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
                    process.env.FRONTEND_URL ||
-                   'http://localhost:3000';
+                   'https://collabai-frontend.vercel.app';
     const meetingUrl = `${baseUrl}/meetings/${meeting.id}/video-call`;
 
     const { data: updatedMeeting, error: updateError } = await supabase

@@ -43,7 +43,11 @@ export async function POST() {
     console.log('Meeting created successfully:', meeting);
 
     // Update the meeting with the proper URL
-    const meetingUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/meetings/${meeting.id}/video-call`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+                   process.env.FRONTEND_URL ||
+                   'https://collabai-frontend.vercel.app';
+    const meetingUrl = `${baseUrl}/meetings/${meeting.id}/video-call`;
 
     const { data: updatedMeeting, error: updateError } = await supabase
       .from('meetings')
