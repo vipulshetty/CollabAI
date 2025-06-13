@@ -36,7 +36,7 @@
     "framer-motion": "^11.13.1",
     "googleapis": "^144.0.0",
     "lucide-react": "^0.464.0",
-    "next": "^15.0.3",
+    "next": "^14.0.4",
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.4",
     "node-nlp": "^4.27.0",
