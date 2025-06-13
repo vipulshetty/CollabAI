@@ -35,7 +35,7 @@ const RecentMeetings: FC<RecentMeetingsProps> = ({ meetings }) => {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {meetings.length === 0 ? (
+          {!meetings || meetings.length === 0 ? (
             <p className="text-sm text-muted-foreground">No recent meetings</p>
           ) : (
             meetings.map((meeting) => (
