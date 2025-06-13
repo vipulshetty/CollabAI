@@ -177,7 +177,7 @@ function calculateEngagementMetrics(meetings: any[]) {
         userEngagement[userId].meetingsAttended++;
       }
 
-      const userMessages = transcripts.filter(t => t.speaker === userId).length;
+      const userMessages = transcripts.filter((t: any) => t.speaker === userId).length;
       userEngagement[userId].messageCount += userMessages;
     });
   });
@@ -229,7 +229,7 @@ function calculateAIInsights(meetings: any[]) {
   // Calculate real insights based on meeting transcripts
   const insights = completedMeetings.map(meeting => {
     const transcripts = meeting.meeting_transcripts || [];
-    const totalWords = transcripts.reduce((acc, t) => acc + (t.content?.split(/\s+/).length || 0), 0);
+    const totalWords = transcripts.reduce((acc: number, t: any) => acc + (t.content?.split(/\s+/).length || 0), 0);
     
     return {
       meetingId: meeting.id,

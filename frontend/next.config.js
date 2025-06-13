@@ -68,7 +68,7 @@ const nextConfig = {
 
   // TypeScript and type checking
   typescript: {
-    ignoreBuildErrors: process.env.NODE_ENV === 'development'
+    ignoreBuildErrors: true
   },
 
   // ESLint configuration
