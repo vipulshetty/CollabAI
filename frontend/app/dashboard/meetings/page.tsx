@@ -1,5 +1,5 @@
-import { RecentMeetings } from '@/components/RecentMeetings';
-import { UpcomingMeetings } from '@/components/UpcomingMeetings';
+import RecentMeetings from '@/components/RecentMeetings';
+import UpcomingMeetings from '@/components/UpcomingMeetings';
 import { InstantMeeting } from '@/components/InstantMeeting';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
