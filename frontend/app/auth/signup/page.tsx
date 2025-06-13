@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Video, UserPlus, Loader2, Eye, EyeOff } from 'lucide-react'
@@ -9,9 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { signUpWithEmail, signInWithGoogle } from '@/lib/auth'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function SignUpPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -19,6 +21,27 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/protected/dashboard')
+    }
+  }, [user, authLoading, router])
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  // Don't render if user is already signed in (will redirect)
+  if (user) {
+    return null
+  }
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault()

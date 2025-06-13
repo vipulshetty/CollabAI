@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authConfig } from '@/lib/auth/auth-config';
+import { authOptions } from '@/lib/auth-config';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -19,7 +19,7 @@ export async function POST(
   context: RouteContext
 ): Promise<Response> {
   try {
-    const session = await getServerSession(authConfig);
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }

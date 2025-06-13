@@ -30,6 +30,44 @@ export default function VideoCallPage() {
         }
 
         const response = await fetch(`/api/meetings/${meetingId}`);
+
+        // If access is denied (403) or meeting not found (404), try to join first
+        if (response.status === 403 || response.status === 404) {
+          console.log('Access denied or meeting not found, attempting to join meeting...');
+
+          try {
+            const joinResponse = await fetch(`/api/meetings/${meetingId}/join`, {
+              method: 'POST',
+            });
+
+            if (joinResponse.ok) {
+              console.log('Successfully joined meeting, retrying fetch...');
+              // Retry fetching the meeting after joining
+              const retryResponse = await fetch(`/api/meetings/${meetingId}`);
+              if (!retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                throw new Error(retryData.error || 'Failed to fetch meeting after joining');
+              }
+
+              const { meeting: joinedMeeting } = await retryResponse.json();
+              if (!joinedMeeting) {
+                throw new Error('Meeting not found after joining');
+              }
+
+              setMeeting(joinedMeeting);
+              // Add a small delay before removing the joining screen
+              setTimeout(() => setIsJoining(false), 1500);
+              return;
+            } else {
+              const joinData = await joinResponse.json();
+              throw new Error(joinData.error || 'Failed to join meeting');
+            }
+          } catch (joinError: any) {
+            console.error('Error joining meeting:', joinError);
+            throw new Error(`Unable to access meeting: ${joinError.message}`);
+          }
+        }
+
         if (!response.ok) {
           const data = await response.json();
           throw new Error(data.error || 'Failed to fetch meeting');

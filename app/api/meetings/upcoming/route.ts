@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authConfig } from '@/lib/auth/auth-config';
+import { authOptions } from '@/lib/auth-config';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -10,7 +10,7 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    const session = await getServerSession(authConfig);
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       console.error('Unauthorized access attempt to upcoming meetings');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

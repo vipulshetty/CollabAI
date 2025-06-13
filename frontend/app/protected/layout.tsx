@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { MeetingProvider } from '@/contexts/MeetingContext';
@@ -11,21 +11,25 @@ export default function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (!loading && !user) {
       router.push('/auth/signin');
     }
-  }, [status, router]);
+  }, [loading, user, router]);
 
-  if (status === 'loading') {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null; // Will redirect in useEffect
   }
 
   return (

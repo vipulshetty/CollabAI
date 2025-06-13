@@ -1,8 +1,8 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect } from 'react';
 
 export default function VideoCallLayout({
   children,
@@ -10,15 +10,16 @@ export default function VideoCallLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
+  const { user, loading } = useAuth();
+
+
+  useEffect(() => {
+    if (!loading && !user) {
       router.push('/auth/signin');
     }
-  });
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  }, [user, loading, router]);
 
-  if (status === "loading") {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-gray-900"></div>
@@ -26,8 +27,12 @@ export default function VideoCallLayout({
     );
   }
 
+  if (!user) {
+    return null; // Will redirect in useEffect
+  }
+
   return (
-    <div className={`min-h-screen bg-background ${isFullscreen ? 'fullscreen' : ''}`}>
+    <div className="min-h-screen bg-background">
       {children}
     </div>
   );

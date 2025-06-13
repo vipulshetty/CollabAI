@@ -7,8 +7,9 @@ import { MeetingCard } from '@/components/MeetingCard';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Plus, Video, Calendar, Activity, History, Loader2, Users } from 'lucide-react';
+import { Plus, Calendar, History, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import ProductivityMetrics from './ProductivityMetrics';
 
 const container = {
   hidden: { opacity: 0 },
@@ -34,13 +35,13 @@ export default function DashboardClient() {
     if (meetings) {
       const now = new Date();
       const recent = meetings
-        .filter((meeting) => new Date(meeting.startTime) < now)
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+        .filter((meeting) => meeting.status === 'completed')
+        .sort((a, b) => new Date(b.scheduled_date || b.created_at).getTime() - new Date(a.scheduled_date || a.created_at).getTime())
         .slice(0, 3);
-      
+
       const upcoming = meetings
-        .filter((meeting) => new Date(meeting.startTime) > now)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .filter((meeting) => meeting.status === 'scheduled' && new Date(meeting.scheduled_date || meeting.created_at) > now)
+        .sort((a, b) => new Date(a.scheduled_date || a.created_at).getTime() - new Date(b.scheduled_date || b.created_at).getTime())
         .slice(0, 3);
 
       setRecentMeetings(recent);
@@ -121,6 +122,9 @@ export default function DashboardClient() {
             </Button>
           </div>
         </div>
+
+        {/* Productivity Metrics */}
+        <ProductivityMetrics meetings={meetings || []} />
 
         {/* Recent and Upcoming Meetings */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

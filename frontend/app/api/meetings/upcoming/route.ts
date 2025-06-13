@@ -1,17 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authConfig } from '@/lib/auth/auth-config';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authConfig);
-    if (!session?.user?.email) {
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user?.email) {
       console.error('Unauthorized access attempt to upcoming meetings');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -32,7 +27,7 @@ export async function GET() {
         meeting_url,
         description
       `)
-      .eq('created_by', session.user.email)
+      .eq('created_by', user.id)
       .eq('status', 'scheduled')
       .gte('scheduled_date', now)
       .order('scheduled_date', { ascending: true })

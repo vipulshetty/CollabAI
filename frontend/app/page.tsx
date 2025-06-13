@@ -1,5 +1,5 @@
 'use client';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Video, Users, Shield, ArrowRight, Brain, FileText, Sparkles } from 'lucide-react';
@@ -61,12 +61,12 @@ const Feature = ({ icon, title, description }: { icon: React.ReactNode; title: s
 );
 
 export default function HomePage() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleGetStarted = () => {
-    if (session) {
-      router.push('/dashboard');
+    if (user) {
+      router.push('/protected/dashboard');
     } else {
       router.push('/auth/signup');
     }
@@ -126,16 +126,21 @@ export default function HomePage() {
               </motion.h1>
             </div>
             <div className="flex items-center space-x-4">
-              {session ? (
+              {user ? (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => router.push('/dashboard')}
-                  className="relative group px-6 py-2"
+                  onClick={() => router.push('/protected/dashboard')}
+                  className="relative group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg" />
-                  <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300">
-                    Dashboard
+                  {/* Animated RGB border */}
+                  <div className="absolute -inset-0.5 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-gradient-x"></div>
+
+                  {/* Button content */}
+                  <div className="relative bg-white dark:bg-gray-900 px-6 py-2 rounded-lg leading-none flex items-center backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg">
+                    <span className="text-gray-900 dark:text-white font-medium tracking-wide">
+                      Dashboard
+                    </span>
                   </div>
                 </motion.button>
               ) : (

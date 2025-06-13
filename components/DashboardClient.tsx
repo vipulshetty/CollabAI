@@ -78,7 +78,7 @@ export default function DashboardClient() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 py-6">
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Button
-              onClick={() => router.push('/dashboard/meetings/instant')}
+              onClick={() => router.push('/protected/dashboard/meetings/instant')}
               className="relative w-full justify-start group overflow-hidden bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 hover:border-transparent dark:hover:border-transparent transition-all duration-500"
             >
               {/* RGB Border Animation */}

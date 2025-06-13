@@ -1,27 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { 
-  Video, 
-  Settings, 
+import {
+  Video,
+  Settings,
   Plus,
-  BarChart3
+  BarChart3,
+  Calendar
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
     {
-      label: 'New Meeting (Test)',
+      label: 'New Meeting',
       href: '/dashboard/meetings/create',
       icon: Plus
+    },
+    {
+      label: 'Calendar',
+      href: '/calendar',
+      icon: Calendar
     },
     {
       label: 'Analytics',
@@ -56,7 +62,7 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
-            {session && menuItems.map((item) => (
+            {user && menuItems.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}

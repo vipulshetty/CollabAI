@@ -1,12 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authConfig } from '@/lib/auth/auth-config';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createClient } from '@/lib/supabase/server';
 
 type RouteContext = {
   params: {
@@ -19,8 +12,10 @@ export async function POST(
   context: RouteContext
 ): Promise<Response> {
   try {
-    const session = await getServerSession(authConfig);
-    if (!session?.user?.email) {
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user?.email) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -61,7 +56,7 @@ export async function POST(
     }
 
     // Only allow the meeting creator or participants to end it
-    if (!meeting.participants.includes(session.user.email)) {
+    if (meeting.created_by !== user.id && !meeting.participants.includes(user.id)) {
       return Response.json(
         { error: 'Not authorized to end this meeting' },
         { status: 403 }
@@ -89,7 +84,7 @@ export async function POST(
         .insert({
           meeting_id: meetingId,
           content: transcript,
-          speaker: session.user.email,
+          speaker: user.email,
           timestamp: new Date().toISOString()
         });
 

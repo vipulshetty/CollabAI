@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoControls from './VideoControls';
 import ParticipantVideo from './ParticipantVideo';
@@ -38,7 +38,7 @@ const getGridSize = (totalParticipants: number): string => {
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -63,36 +63,101 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [summary, setSummary] = useState<string>('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [peerConnections, setPeerConnections] = useState<{ [key: string]: RTCPeerConnection }>({});
+  const [remoteStreams, setRemoteStreams] = useState<{ [key: string]: MediaStream }>({});
+  const [pendingCandidates, setPendingCandidates] = useState<{ [key: string]: RTCIceCandidateInit[] }>({});
 
   // Event handler functions
   const handleUserJoined = useCallback(async (userId: string) => {
-    console.log('User joined:', userId);
-    
-    // Create new peer connection for the user
+    console.log('🔵 User joined:', userId, 'My socket ID:', socketRef.current?.id);
+
+    // Don't create connection to ourselves
+    if (userId === socketRef.current?.id) {
+      console.log('🔵 Ignoring self connection');
+      return;
+    }
+
+    // Create new peer connection for the user with production-ready STUN servers
     const peerConnection = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Additional reliable STUN servers for production
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'stun:stun.nextcloud.com:443' }
       ]
     });
-    
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log('🔵 Connection state changed:', peerConnection.connectionState, 'for user:', userId);
+    };
+
+    // Handle remote stream
+    peerConnection.ontrack = (event) => {
+      console.log('🔵 Received remote track from:', userId);
+      const [remoteStream] = event.streams;
+      console.log('🔵 Remote stream tracks:', remoteStream.getTracks().length);
+      console.log('🔵 Remote stream tracks details:', remoteStream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })));
+
+      setRemoteStreams(prev => {
+        console.log('🔵 Setting remote stream for:', userId);
+        return {
+          ...prev,
+          [userId]: remoteStream
+        };
+      });
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log('🔵 Sending ICE candidate to:', userId);
+        const socket = socketRef.current;
+        socket?.emit('ice-candidate', { to: userId, candidate: event.candidate });
+      }
+    };
+
     // Add local tracks to the connection
     if (localStream) {
+      console.log('🔵 Adding local tracks to peer connection for:', userId);
       localStream.getTracks().forEach(track => {
+        console.log('🔵 Adding track:', track.kind, track.enabled);
         peerConnection.addTrack(track, localStream);
       });
     }
-    
+
     setPeerConnections(prev => ({
       ...prev,
       [userId]: peerConnection
     }));
-    
-    setParticipants(prev => [...prev, userId]);
+
+    setParticipants(prev => {
+      if (!prev.includes(userId)) {
+        return [...prev, userId];
+      }
+      return prev;
+    });
+
+    // Create and send offer to the new user
+    try {
+      console.log('🔵 Creating offer for:', userId);
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      const socket = socketRef.current;
+      socket?.emit('offer', { to: userId, offer });
+      console.log('🔵 Sent offer to:', userId);
+    } catch (error) {
+      console.error('🔴 Error creating offer:', error);
+    }
   }, [localStream]);
 
   const handleUserLeft = useCallback((userId: string) => {
     console.log('User left:', userId);
-    
+
     // Clean up peer connection
     if (peerConnections[userId]) {
       peerConnections[userId].close();
@@ -102,48 +167,129 @@ export default function VideoCall({ peerId }: VideoCallProps) {
         return newConnections;
       });
     }
-    
+
+    // Clean up remote stream
+    setRemoteStreams(prev => {
+      const newStreams = { ...prev };
+      delete newStreams[userId];
+      return newStreams;
+    });
+
     setParticipants(prev => prev.filter(id => id !== userId));
   }, [peerConnections]);
 
   const handleOffer = useCallback(async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
-    console.log('Received offer from:', from);
+    console.log('🟢 Received offer from:', from);
+
+    // If we don't have a peer connection for this user, create one
+    if (!peerConnections[from]) {
+      console.log('🟢 No peer connection exists, creating one for:', from);
+      await handleUserJoined(from);
+    }
+
     const peerConnection = peerConnections[from];
-    if (!peerConnection) return;
+    if (!peerConnection) {
+      console.error('🔴 Still no peer connection for:', from);
+      return;
+    }
 
     try {
+      console.log('🟢 Setting remote description for:', from);
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Process any pending ICE candidates
+      const pending = pendingCandidates[from];
+      if (pending && pending.length > 0) {
+        console.log('🟠 Processing', pending.length, 'pending ICE candidates for:', from);
+        for (const candidate of pending) {
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (error) {
+            console.error('🔴 Error adding pending ICE candidate:', error);
+          }
+        }
+        // Clear pending candidates
+        setPendingCandidates(prev => {
+          const newPending = { ...prev };
+          delete newPending[from];
+          return newPending;
+        });
+      }
+
+      console.log('🟢 Creating answer for:', from);
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
-      const socket = socketService.initSocket();
+      const socket = socketRef.current;
       socket?.emit('answer', { to: from, answer });
+      console.log('🟢 Sent answer to:', from);
     } catch (error) {
-      console.error('Error handling offer:', error);
+      console.error('🔴 Error handling offer from:', from, error);
     }
-  }, [peerConnections]);
+  }, [peerConnections, handleUserJoined]);
 
   const handleAnswer = useCallback(async ({ from, answer }: { from: string; answer: RTCSessionDescriptionInit }) => {
-    console.log('Received answer from:', from);
+    console.log('🟡 Received answer from:', from);
     const peerConnection = peerConnections[from];
-    if (!peerConnection) return;
+    if (!peerConnection) {
+      console.error('🔴 No peer connection for answer from:', from);
+      return;
+    }
 
     try {
+      console.log('🟡 Setting remote description (answer) for:', from);
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+
+      // Process any pending ICE candidates
+      const pending = pendingCandidates[from];
+      if (pending && pending.length > 0) {
+        console.log('🟠 Processing', pending.length, 'pending ICE candidates for:', from);
+        for (const candidate of pending) {
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (error) {
+            console.error('🔴 Error adding pending ICE candidate:', error);
+          }
+        }
+        // Clear pending candidates
+        setPendingCandidates(prev => {
+          const newPending = { ...prev };
+          delete newPending[from];
+          return newPending;
+        });
+      }
+
+      console.log('🟡 Successfully set remote description for:', from);
     } catch (error) {
-      console.error('Error handling answer:', error);
+      console.error('🔴 Error handling answer from:', from, error);
     }
   }, [peerConnections]);
 
   const handleIceCandidate = useCallback(({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
-    console.log('Received ICE candidate from:', from);
+    console.log('🟠 Received ICE candidate from:', from);
     const peerConnection = peerConnections[from];
-    if (!peerConnection) return;
+    if (!peerConnection) {
+      console.error('🔴 No peer connection for ICE candidate from:', from);
+      return;
+    }
+
+    // Check if remote description is set before adding ICE candidate
+    if (!peerConnection.remoteDescription) {
+      console.log('🟠 Remote description not set yet, queuing ICE candidate for:', from);
+      // Store the candidate to add later when remote description is set
+      setPendingCandidates(prev => ({
+        ...prev,
+        [from]: [...(prev[from] || []), candidate]
+      }));
+      return;
+    }
 
     try {
+      console.log('🟠 Adding ICE candidate for:', from);
       peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log('🟠 Successfully added ICE candidate for:', from);
     } catch (error) {
-      console.error('Error handling ICE candidate:', error);
+      console.error('🔴 Error handling ICE candidate from:', from, error);
     }
   }, [peerConnections]);
 
@@ -244,30 +390,46 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   useEffect(() => {
     const socket = socketRef.current;
-    
+    console.log('🔵 FRONTEND: Setting up socket connection, peerId:', peerId, 'socket exists:', !!socket);
+
     if (socket) {
       socket.on('connect', () => {
-        console.log('Socket connected successfully');
+        console.log('🔵 FRONTEND: Socket connected successfully, socket ID:', socket.id);
+        console.log('🔵 FRONTEND: Joining room with peerId:', peerId);
         setSocketReady(true);
-        socket.emit('join-room', { roomId: peerId });
+
+        // Add a small delay to ensure connection is stable
+        setTimeout(() => {
+          console.log('🔵 FRONTEND: About to emit join-room event');
+          socket.emit('join-room', { roomId: peerId });
+          console.log('🔵 FRONTEND: join-room event emitted with roomId:', peerId);
+        }, 100);
       });
 
       socket.on('disconnect', () => {
-        if (!isEndingRef.current) {  
-          console.log('Socket disconnected');
+        if (!isEndingRef.current) {
+          console.log('🔴 FRONTEND: Socket disconnected');
           setSocketReady(false);
         }
       });
 
       if (!socket.connected) {
-        console.log('Socket not connected, attempting to connect...');
+        console.log('🔵 FRONTEND: Socket not connected, attempting to connect...');
         socket.connect();
       } else {
+        console.log('🔵 FRONTEND: Socket already connected, socket ID:', socket.id);
+        console.log('🔵 FRONTEND: Joining room with peerId:', peerId);
         setSocketReady(true);
-        socket.emit('join-room', { roomId: peerId });
+
+        setTimeout(() => {
+          console.log('🔵 FRONTEND: About to emit join-room event (already connected)');
+          socket.emit('join-room', { roomId: peerId });
+          console.log('🔵 FRONTEND: join-room event emitted (already connected) with roomId:', peerId);
+        }, 100);
       }
 
       return () => {
+        console.log('🔵 FRONTEND: Cleaning up socket listeners');
         socket.off('connect');
         socket.off('disconnect');
         if (socket.connected) {
@@ -290,12 +452,15 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   useEffect(() => {
     if (socketReady) {
       const socket = socketRef.current;
-      const service = new TranscriptionService(socket!, peerId);
-      setTranscriptionService(service);
+      console.log('🔵 FRONTEND: Socket is ready, setting up transcription service');
 
-      // Start transcription automatically
-      service.start();
-      setIsTranscribing(true);
+      // Temporarily disable auto-start transcription to focus on WebRTC
+      // const service = new TranscriptionService(socket!, peerId);
+      // setTranscriptionService(service);
+
+      // // Start transcription automatically
+      // service.start();
+      // setIsTranscribing(true);
 
       // Listen for transcription updates
       socket?.on('transcription', (data) => {
@@ -309,7 +474,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       });
 
       return () => {
-        service.stop();
+        // service.stop();
         socket?.off('transcription');
         socket?.off('transcription-error');
       };
@@ -317,40 +482,32 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [socketReady, peerId]);
 
   useEffect(() => {
-    const socket = socketService.initSocket();
+    const socket = socketRef.current;
     if (!socket || !localStream) return;
 
     socket.on('user-joined', handleUserJoined);
     socket.on('user-left', handleUserLeft);
-
-    return () => {
-      socket.off('user-joined', handleUserJoined);
-      socket.off('user-left', handleUserLeft);
-    };
-  }, [localStream, handleUserJoined, handleUserLeft]);
-
-  useEffect(() => {
-    const socket = socketService.initSocket();
-    if (!socket || !localStream) return;
-
     socket.on('offer', handleOffer);
     socket.on('answer', handleAnswer);
     socket.on('ice-candidate', handleIceCandidate);
 
     return () => {
+      socket.off('user-joined', handleUserJoined);
+      socket.off('user-left', handleUserLeft);
       socket.off('offer', handleOffer);
       socket.off('answer', handleAnswer);
       socket.off('ice-candidate', handleIceCandidate);
     };
-  }, [localStream, handleOffer, handleAnswer, handleIceCandidate]);
+  }, [localStream, handleUserJoined, handleUserLeft, handleOffer, handleAnswer, handleIceCandidate, socketRef.current]);
 
   useEffect(() => {
-    const socket = socketService.initSocket();
+    const socket = socketRef.current;
     if (!socket) return;
 
-    const handleChatMessage = (data: { content: string; sender: string }) => {
+    const handleChatMessage = (data: { content: string; sender: string; senderEmail: string }) => {
       console.log('Received chat message:', data);
-      if (data.sender !== session?.user?.name) {
+      // Only show messages from other users
+      if (data.senderEmail !== user?.email) {
         setMessages(prev => [...prev, {
           content: data.content,
           sender: data.sender,
@@ -364,7 +521,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     return () => {
       socket.off('chat-message', handleChatMessage);
     };
-  }, [session?.user?.name]);
+  }, [user?.email, socketRef.current]);
 
   useEffect(() => {
     console.log('Current messages:', messages);
@@ -409,6 +566,8 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     if (isEndingRef.current) return;
     isEndingRef.current = true;
 
+    console.log('🔴 FRONTEND: Ending call...');
+
     try {
       // Stop transcription first to save transcripts
       if (transcriptionService) {
@@ -421,39 +580,58 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
       // Clean up media streams
       if (localStream) {
+        console.log('🔴 FRONTEND: Stopping local media tracks');
         localStream.getTracks().forEach(track => track.stop());
       }
 
-      // End meeting
-      if (!peerId) {
-        console.error('No meeting ID available');
-        router.push('/dashboard');
-        return;
+      // Close all peer connections
+      console.log('🔴 FRONTEND: Closing peer connections');
+      Object.values(peerConnections).forEach(pc => pc.close());
+      setPeerConnections({});
+
+      // Notify other participants that we're leaving
+      const socket = socketRef.current;
+      if (socket && socket.connected) {
+        console.log('🔴 FRONTEND: Notifying others that we are leaving');
+        socket.emit('user-leaving', { roomId: peerId });
       }
 
-      const response = await fetch(`/api/meetings/${peerId}/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Clean up socket connection
+      if (socket) {
+        socket.disconnect();
+      }
+
+      // Try to end meeting on server (optional - don't fail if it doesn't work)
+      if (peerId) {
+        try {
+          console.log('🔴 FRONTEND: Attempting to end meeting on server');
+          const response = await fetch(`/api/meetings/${peerId}/end`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('🔴 FRONTEND: Meeting ended successfully on server:', data);
+          } else {
+            console.log('🔴 FRONTEND: Could not end meeting on server, but continuing with local cleanup');
+          }
+        } catch (error) {
+          console.log('🔴 FRONTEND: Could not end meeting on server, but continuing with local cleanup:', error);
         }
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to end meeting');
       }
 
-      console.log('Meeting ended successfully:', data);
+      console.log('🔴 FRONTEND: Navigating to dashboard');
       router.push('/dashboard');
     } catch (error) {
-      console.error('Error ending meeting:', error);
-      // Stay on the page if there's an error
-      isEndingRef.current = false;
-      return;
+      console.error('🔴 FRONTEND: Error ending meeting:', error);
+      // Even if there's an error, try to navigate away
+      router.push('/dashboard');
     }
 
-    // Only set to false if we successfully ended the meeting
+    // Always reset the flag
     isEndingRef.current = false;
   };
 
@@ -570,20 +748,23 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   const handleSendMessage = (content: string) => {
     console.log('Sending message:', content);
-    if (socketService.socket) {
+    const socket = socketRef.current;
+    if (socket && socket.connected) {
+      const senderName = user?.user_metadata?.full_name || user?.email || 'Anonymous';
       const messageData = {
         roomId: peerId,
         content,
-        sender: session?.user?.name || 'Anonymous',
+        sender: senderName,
+        senderEmail: user?.email,
         timestamp: new Date().toISOString()
       };
-      
+
       console.log('Emitting chat message:', messageData);
-      socketService.socket.emit('chat-message', messageData);
+      socket.emit('chat-message', messageData);
 
       setMessages(prev => [...prev, {
         content,
-        sender: session?.user?.name || 'Anonymous',
+        sender: senderName,
         isLocal: true
       }]);
     } else {
@@ -688,10 +869,10 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-900/95">
                     <div className="text-center">
                       <div className="w-24 h-24 mx-auto mb-4 relative rounded-full overflow-hidden ring-4 ring-indigo-500/30">
-                        {session?.user?.image ? (
+                        {user?.user_metadata?.avatar_url ? (
                           <Image
-                            src={session.user.image}
-                            alt={session.user.name || 'User'}
+                            src={user.user_metadata.avatar_url}
+                            alt={user?.user_metadata?.full_name || 'User'}
                             layout="fill"
                             objectFit="cover"
                             className="rounded-full"
@@ -699,7 +880,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                         ) : (
                           <div className="w-full h-full bg-indigo-500 flex items-center justify-center">
                             <span className="text-2xl font-semibold text-white">
-                              {session?.user?.name?.charAt(0) || 'U'}
+                              {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                             </span>
                           </div>
                         )}
@@ -708,7 +889,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                         Camera is turned off
                       </p>
                       <p className="text-gray-500 text-xs mt-1">
-                        {session?.user?.name || 'User'}
+                        {user?.user_metadata?.full_name || user?.email || 'User'}
                       </p>
                     </div>
                   </div>
@@ -726,24 +907,29 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               </div>
             </motion.div>
             
-            {participants.map((participantId, index) => (
-              <motion.div
-                key={participantId}
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
-              >
-                <ParticipantVideo
-                  participantId={participantId}
-                  layout="grid"
-                  stream={null}
-                  isLocal={false}
-                  isVideoOff={false}
-                  profileImage={null}
-                />
-              </motion.div>
-            ))}
+            {participants.map((participantId, index) => {
+              const stream = remoteStreams[participantId];
+              console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0);
+
+              return (
+                <motion.div
+                  key={participantId}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
+                  className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+                >
+                  <ParticipantVideo
+                    participantId={participantId}
+                    layout="grid"
+                    stream={stream}
+                    isLocal={false}
+                    isVideoOff={!stream}
+                    profileImage={undefined}
+                  />
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -815,8 +1001,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             onToggleAudio={handleToggleAudio}
             onToggleTranscription={handleToggleTranscription}
             isTranscribing={isTranscribing}
-            onToggleRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
+            onToggleRecording={isRecording ? handleStopRecording : handleStartRecording}
             isRecording={isRecording}
             onToggleWhiteboard={handleToggleWhiteboard}
             showWhiteboard={showWhiteboard}

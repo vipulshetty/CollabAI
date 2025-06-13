@@ -3,6 +3,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom RGB gradient animation */
+@keyframes gradient-x {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 3s ease infinite;
+  background: linear-gradient(-45deg, #ff0000, #00ff00, #0000ff, #ffff00, #ff00ff, #00ffff, #ff0000);
+  background-size: 400% 400%;
+}
+
 [data-theme="dark"] {
   --background: #000000;
   --foreground: #ffffff;

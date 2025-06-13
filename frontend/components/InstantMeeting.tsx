@@ -18,14 +18,28 @@ export function InstantMeeting() {
   const createInstantMeeting = async () => {
     try {
       setLoading(true);
-      const meetingId = await createMeeting({
-        title: `Instant Meeting - ${new Date().toLocaleString()}`,
-        status: 'active',
+
+      // Call our new instant meeting API
+      const response = await fetch('/api/meetings/instant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
-      const link = `${window.location.origin}/meetings/join/${meetingId}`;
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create meeting');
+      }
+
+      const data = await response.json();
+      console.log('Meeting created:', data);
+
+      const link = data.redirectUrl || `${window.location.origin}/meetings/${data.meetingId}/video-call`;
       setMeetingLink(link);
     } catch (error) {
       console.error('Failed to create instant meeting:', error);
+      alert('Failed to create meeting. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,8 +55,10 @@ export function InstantMeeting() {
 
   const joinMeeting = () => {
     if (meetingLink) {
-      const meetingId = meetingLink.split('/').pop();
-      router.push(`/meetings/join/${meetingId}`);
+      // Extract meeting ID from URL like: /meetings/meeting_123/video-call
+      const urlParts = meetingLink.split('/');
+      const meetingId = urlParts[urlParts.length - 2]; // Get the part before 'video-call'
+      router.push(`/meetings/${meetingId}/video-call`);
     }
   };
 

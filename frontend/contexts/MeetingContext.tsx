@@ -2,7 +2,7 @@
 
 import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
 import { Meeting } from '@/types/meeting';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MeetingContextType {
   meetings: Meeting[];
@@ -26,14 +26,14 @@ export function MeetingProvider({ children }: { children: ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null);
-  const { data: session } = useSession();
+  const { user } = useAuth();
 
   const fetchMeetings = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!user?.email) return;
     
     try {
       setLoading(true);
-      const response = await fetch('/api/meetings/upcoming');
+      const response = await fetch('/api/meetings');
       if (!response.ok) {
         const errorData = await response.json();
         if (response.status === 401) {
@@ -49,10 +49,10 @@ export function MeetingProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.email]);
+  }, [user?.email]);
 
   const createMeeting = async (params: CreateMeetingParams) => {
-    if (!session?.user?.email) {
+    if (!user?.email) {
       throw new Error('Please sign in to create a meeting');
     }
 
@@ -86,7 +86,7 @@ export function MeetingProvider({ children }: { children: ReactNode }) {
   };
 
   const joinMeeting = async (meetingId: string) => {
-    if (!session?.user?.email) {
+    if (!user?.email) {
       throw new Error('Please sign in to join the meeting');
     }
 
@@ -113,7 +113,7 @@ export function MeetingProvider({ children }: { children: ReactNode }) {
   };
 
   const endMeeting = async (meetingId: string) => {
-    if (!session?.user?.email) {
+    if (!user?.email) {
       throw new Error('Please sign in to end the meeting');
     }
 
