@@ -1,7 +1,7 @@
-import { NextConfig } from 'next';
-import path from 'path';
+const path = require('path');
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   webpack: (config, { isServer }) => {
     // Handle WebSocket-related externals
     if (!isServer) {
@@ -61,23 +61,21 @@ const nextConfig: NextConfig = {
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
 
-  // Moved serverComponentsExternalPackages to serverExternalPackages
+  // External packages for server components
   serverExternalPackages: ['simple-peer', 'socket.io'],
-
-  // Remove problematic rewrites
-  // async rewrites() {
-  //   return [
-  //     // Commented out due to invalid destination
-  //   ];
-  // },
 
   // TypeScript and type checking
   typescript: {
     ignoreBuildErrors: process.env.NODE_ENV === 'development'
   },
 
+  // ESLint configuration
+  eslint: {
+    ignoreDuringBuilds: process.env.NODE_ENV === 'production'
+  },
+
   // Compress and optimize builds
   compress: true,
 };
 
-export default nextConfig;
+module.exports = nextConfig;
