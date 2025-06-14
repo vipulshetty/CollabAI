@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { Camera, CameraOff } from 'lucide-react';
 
@@ -85,12 +84,10 @@ export default function ParticipantVideo({
   const showProfileImage = isVideoOff || !hasVideoTrack;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <div
       className={`relative rounded-lg overflow-hidden ${
-        layout === 'grid' 
-          ? 'aspect-video w-full' 
+        layout === 'grid'
+          ? 'aspect-video w-full'
           : 'fixed inset-0 w-screen h-screen'
       }`}
     >
@@ -107,7 +104,7 @@ export default function ParticipantVideo({
             </div>
           ) : (
             <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold">
-              {getInitials(isLocal ? 'You' : (participantName || `User ${participantId.slice(-4)}`)}
+              {getInitials(isLocal ? 'You' : (participantName || `User ${participantId.slice(-4)}`))}
             </div>
           )}
           <div className="absolute top-4 right-4">
@@ -139,12 +136,8 @@ export default function ParticipantVideo({
 
       {/* Connection Status Indicator */}
       <div className="absolute top-4 right-4">
-        <motion.div
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="w-3 h-3 bg-green-500 rounded-full shadow-lg shadow-green-500/50"
-        />
+        <div className="w-3 h-3 bg-green-500 rounded-full shadow-lg shadow-green-500/50 animate-pulse" />
       </div>
-    </motion.div>
+    </div>
   );
 }
