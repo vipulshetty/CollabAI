@@ -1,13 +1,85 @@
 import { Socket } from 'socket.io-client';
 
+// Enhanced Speech Recognition types for better browser compatibility
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message?: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-    mozSpeechRecognition: typeof SpeechRecognition;
-    msSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+    mozSpeechRecognition: any;
+    msSpeechRecognition: any;
   }
 }
+
+// Enhanced browser compatibility detection
+const getBrowserInfo = () => {
+  const userAgent = navigator.userAgent;
+  const isChrome = /Chrome/.test(userAgent);
+  const isFirefox = /Firefox/.test(userAgent);
+  const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+  const isEdge = /Edg/.test(userAgent);
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isSecureContext = window.isSecureContext || location.protocol === 'https:';
+
+  return { isChrome, isFirefox, isSafari, isEdge, isMobile, isSecureContext };
+};
+
+// Check Speech Recognition support
+const getSpeechRecognitionSupport = () => {
+  const browserInfo = getBrowserInfo();
+
+  if (typeof window === 'undefined') {
+    return { supported: false, reason: 'Not in browser environment' };
+  }
+
+  if (!browserInfo.isSecureContext) {
+    return { supported: false, reason: 'Requires HTTPS or localhost' };
+  }
+
+  if (window.SpeechRecognition) {
+    return { supported: true, constructor: window.SpeechRecognition, browser: 'standard' };
+  }
+
+  if (window.webkitSpeechRecognition) {
+    return { supported: true, constructor: window.webkitSpeechRecognition, browser: 'webkit' };
+  }
+
+  if (window.mozSpeechRecognition) {
+    return { supported: true, constructor: window.mozSpeechRecognition, browser: 'mozilla' };
+  }
+
+  if (window.msSpeechRecognition) {
+    return { supported: true, constructor: window.msSpeechRecognition, browser: 'microsoft' };
+  }
+
+  return {
+    supported: false,
+    reason: `Speech Recognition not supported in ${browserInfo.isChrome ? 'Chrome' : browserInfo.isFirefox ? 'Firefox' : browserInfo.isSafari ? 'Safari' : 'this browser'}`
+  };
+};
 
 interface TranscriptionOptions {
   language?: string;
@@ -31,12 +103,20 @@ export class TranscriptionService {
     private roomId: string,
     private options: TranscriptionOptions = {}
   ) {
-    this.instanceId = Math.random().toString(36).substr(2, 9);
+    this.instanceId = Math.random().toString(36).substring(2, 11);
     console.log(`🎤 Creating TranscriptionService instance: ${this.instanceId}`);
 
     // Stop any existing instances before creating a new one
     this.stopExistingInstances();
 
+    // Check browser support before initializing
+    const support = getSpeechRecognitionSupport();
+    if (!support.supported) {
+      console.error(`🎤 Speech Recognition not supported: ${support.reason}`);
+      return;
+    }
+
+    console.log(`🎤 Speech Recognition supported via ${support.browser}`);
     this.initializeRecognition();
 
     // Monitor socket connection
@@ -72,30 +152,48 @@ export class TranscriptionService {
 
   private initializeRecognition() {
     try {
-      // Try to get the SpeechRecognition constructor from different browser implementations
-      const SpeechRecognition = 
-        window.SpeechRecognition || 
-        window.webkitSpeechRecognition ||
-        window.mozSpeechRecognition ||
-        window.msSpeechRecognition;
+      const support = getSpeechRecognitionSupport();
 
-      if (!SpeechRecognition) {
-        throw new Error('Speech recognition is not supported in this browser');
+      if (!support.supported) {
+        throw new Error(`Speech recognition not supported: ${support.reason}`);
       }
 
-      this.recognition = new SpeechRecognition();
+      console.log(`🎤 [${this.instanceId}] Initializing with ${support.browser} Speech Recognition`);
+      this.recognition = new support.constructor();
       this.setupRecognition();
+
+      console.log(`🎤 [${this.instanceId}] Speech recognition initialized successfully`);
     } catch (error) {
-      console.error('Failed to initialize speech recognition:', error);
+      console.error(`🎤 [${this.instanceId}] Failed to initialize speech recognition:`, error);
       this.recognition = null;
-      
-      // Notify the socket about the initialization failure
-      if (this.socket && this.socket.connected) {
-        this.socket.emit('transcription-error', {
-          roomId: this.roomId,
-          error: 'Speech recognition initialization failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        });
+
+      // Try fallback initialization
+      try {
+        console.log(`🎤 [${this.instanceId}] Attempting fallback initialization...`);
+        const SpeechRecognition =
+          window.SpeechRecognition ||
+          window.webkitSpeechRecognition ||
+          window.mozSpeechRecognition ||
+          window.msSpeechRecognition;
+
+        if (SpeechRecognition) {
+          this.recognition = new SpeechRecognition();
+          this.setupRecognition();
+          console.log(`🎤 [${this.instanceId}] Fallback initialization successful`);
+        } else {
+          throw new Error('No Speech Recognition implementation found');
+        }
+      } catch (fallbackError) {
+        console.error(`🎤 [${this.instanceId}] Fallback initialization failed:`, fallbackError);
+
+        // Notify the socket about the initialization failure
+        if (this.socket && this.socket.connected) {
+          this.socket.emit('transcription-error', {
+            roomId: this.roomId,
+            error: 'Speech recognition initialization failed',
+            details: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+          });
+        }
       }
     }
   }
@@ -103,18 +201,33 @@ export class TranscriptionService {
   private setupRecognition() {
     if (!this.recognition) return;
 
-    // Configure recognition settings
+    // Enhanced configuration for better stability
     this.recognition.lang = this.options.language || 'en-US';
-    this.recognition.continuous = this.options.continuous ?? true;
-    this.recognition.interimResults = this.options.interimResults ?? true;
+    this.recognition.continuous = true; // Always continuous
+    this.recognition.interimResults = true; // Always show interim results
+    this.recognition.maxAlternatives = 1; // Reduce processing overhead
+
+    // Add grammars for better recognition (if supported)
+    try {
+      if ('webkitSpeechGrammarList' in window) {
+        const grammar = '#JSGF V1.0; grammar common; public <common> = hello | hi | yes | no | okay | thanks | meeting | call | video | audio | chat | share | screen | record | stop | start | end | join | leave;';
+        const speechRecognitionList = new (window as any).webkitSpeechGrammarList();
+        speechRecognitionList.addFromString(grammar, 1);
+        (this.recognition as any).grammars = speechRecognitionList;
+      }
+    } catch (error) {
+      console.log(`🎤 [${this.instanceId}] Grammar not supported, continuing without it`);
+    }
 
     // Handle recognition start
     this.recognition.onstart = () => {
-      console.log('Transcription started');
+      console.log(`🎤 [${this.instanceId}] Speech recognition started successfully`);
       this.isTranscribing = true;
-      this.socket.emit('transcription-status', { 
-        roomId: this.roomId, 
-        status: 'started' 
+      this.retryCount = 0; // Reset retry count on successful start
+      this.socket.emit('transcription-status', {
+        roomId: this.roomId,
+        status: 'started',
+        instanceId: this.instanceId
       });
     };
 
@@ -122,6 +235,27 @@ export class TranscriptionService {
     this.recognition.onerror = this.handleError.bind(this);
     this.recognition.onend = this.handleEnd.bind(this);
     this.recognition.onresult = this.handleResult.bind(this);
+
+    // Add additional event handlers for better debugging (with proper typing)
+    try {
+      (this.recognition as any).onspeechstart = () => {
+        console.log(`🎤 [${this.instanceId}] Speech detected`);
+      };
+
+      (this.recognition as any).onspeechend = () => {
+        console.log(`🎤 [${this.instanceId}] Speech ended`);
+      };
+
+      (this.recognition as any).onsoundstart = () => {
+        console.log(`🎤 [${this.instanceId}] Sound detected`);
+      };
+
+      (this.recognition as any).onsoundend = () => {
+        console.log(`🎤 [${this.instanceId}] Sound ended`);
+      };
+    } catch (error) {
+      console.log(`🎤 [${this.instanceId}] Additional event handlers not supported`);
+    }
   }
 
   private handleError(event: SpeechRecognitionErrorEvent) {
@@ -134,53 +268,76 @@ export class TranscriptionService {
       instanceId: this.instanceId
     };
 
-    // Only log meaningful errors
-    if (event.error !== 'no-speech') {
-      console.error(`🎤 [${this.instanceId}] Speech recognition error:`, {
-        type: errorDetails.type,
-        message: errorDetails.message
-      });
+    // Handle specific error types with better logic
+    switch (event.error) {
+      case 'not-allowed':
+        console.error(`🎤 [${this.instanceId}] Microphone permission denied`);
+        this.handlePermissionDenied();
+        break;
+
+      case 'no-speech':
+        // Don't treat no-speech as an error, just log and continue
+        console.log(`🎤 [${this.instanceId}] No speech detected, continuing...`);
+        break;
+
+      case 'network':
+        console.warn(`🎤 [${this.instanceId}] Network error during transcription`);
+        this.handleNetworkError();
+        break;
+
+      case 'aborted':
+        console.log(`🎤 [${this.instanceId}] Speech recognition aborted`);
+        // Don't immediately reconnect on abort - it might be intentional
+        if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
+          // Wait a bit before attempting reconnect to avoid rapid cycling
+          setTimeout(() => {
+            if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
+              console.log(`🎤 [${this.instanceId}] Attempting delayed reconnect after abort`);
+              this.attemptReconnect();
+            }
+          }, 1000);
+        } else {
+          console.log(`🎤 [${this.instanceId}] Not reconnecting after abort (not active or not transcribing)`);
+          (window as any).speechRecognitionActive = false;
+        }
+        break;
+
+      case 'audio-capture':
+        console.error(`🎤 [${this.instanceId}] Audio capture error - no microphone found`);
+        this.handleAudioCaptureError();
+        break;
+
+      case 'service-not-allowed':
+        console.error(`🎤 [${this.instanceId}] Speech recognition service not allowed`);
+        this.handleServiceNotAllowed();
+        break;
+
+      case 'language-not-supported':
+        console.error(`🎤 [${this.instanceId}] Language not supported, falling back to en-US`);
+        this.recognition!.lang = 'en-US';
+        if (this.isTranscribing) {
+          this.attemptReconnect();
+        }
+        break;
+
+      default:
+        console.warn(`🎤 [${this.instanceId}] Unknown speech recognition error:`, {
+          type: errorDetails.type,
+          message: errorDetails.message
+        });
+
+        // Only attempt reconnect for unknown errors if we're actively transcribing
+        if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
+          this.attemptReconnect();
+        }
     }
 
-    // Notify the socket about the error (except for no-speech)
+    // Notify the socket about significant errors (not no-speech)
     if (this.socket?.connected && event.error !== 'no-speech') {
       this.socket.emit('transcription-error', {
         roomId: this.roomId,
         ...errorDetails
       });
-    }
-
-    // Handle specific error types
-    switch (event.error) {
-      case 'not-allowed':
-        this.handlePermissionDenied();
-        break;
-      case 'no-speech':
-        // Don't treat no-speech as an error, just continue
-        break;
-      case 'network':
-        this.handleNetworkError();
-        break;
-      case 'aborted':
-        // Only reconnect if this is the current active instance and we're still supposed to be transcribing
-        if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
-          console.log(`🎤 [${this.instanceId}] Speech recognition aborted, attempting reconnect`);
-          this.attemptReconnect();
-        } else {
-          console.log(`🎤 [${this.instanceId}] Speech recognition aborted, but not reconnecting (not active instance or not transcribing)`);
-          (window as any).speechRecognitionActive = false;
-        }
-        break;
-      case 'audio-capture':
-        this.handleAudioCaptureError();
-        break;
-      case 'service-not-allowed':
-        this.handleServiceNotAllowed();
-        break;
-      default:
-        if (this.isTranscribing) {
-          this.attemptReconnect();
-        }
     }
   }
 
@@ -232,6 +389,12 @@ export class TranscriptionService {
       return;
     }
 
+    // Don't reconnect if we're not supposed to be transcribing
+    if (!this.isTranscribing) {
+      console.log(`🎤 [${this.instanceId}] Not attempting reconnect - transcription stopped`);
+      return;
+    }
+
     if (this.retryCount < this.maxRetries) {
       this.retryCount++;
       console.log(`🎤 [${this.instanceId}] Attempting to reconnect (${this.retryCount}/${this.maxRetries})`);
@@ -240,23 +403,42 @@ export class TranscriptionService {
         clearTimeout(this.reconnectTimeout);
       }
 
-      const delay = this.retryDelay * this.retryCount;
-      this.reconnectTimeout = setTimeout(() => {
+      // Progressive delay: start with 2 seconds, increase by 1 second each retry
+      const delay = Math.min(2000 + (this.retryCount * 1000), 10000);
+
+      this.reconnectTimeout = setTimeout(async () => {
         if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
           try {
             console.log(`🎤 [${this.instanceId}] Restarting speech recognition after ${delay}ms delay`);
-            if (!(window as any).speechRecognitionActive && this.recognition) {
+
+            // Ensure we're not already active
+            if ((window as any).speechRecognitionActive) {
+              console.log(`🎤 [${this.instanceId}] Speech recognition already active, waiting...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (this.recognition && this.isTranscribing) {
+              // Reset recognition settings
+              this.recognition.continuous = true;
+              this.recognition.interimResults = true;
+              this.recognition.maxAlternatives = 1;
+
               (window as any).speechRecognitionActive = true;
               this.recognition.start();
+              console.log(`🎤 [${this.instanceId}] Speech recognition restarted successfully`);
             }
           } catch (error) {
             console.error(`🎤 [${this.instanceId}] Error restarting recognition:`, error);
             (window as any).speechRecognitionActive = false;
+
             // Try again if we haven't exceeded max retries
             if (this.retryCount < this.maxRetries) {
-              setTimeout(() => this.attemptReconnect(), 2000);
+              console.log(`🎤 [${this.instanceId}] Scheduling another reconnect attempt in 3 seconds`);
+              setTimeout(() => this.attemptReconnect(), 3000);
             }
           }
+        } else {
+          console.log(`🎤 [${this.instanceId}] Reconnect cancelled - conditions no longer met`);
         }
       }, delay);
     } else {
@@ -268,51 +450,106 @@ export class TranscriptionService {
         this.socket.emit('transcription-error', {
           roomId: this.roomId,
           error: 'max_retries_reached',
-          message: 'Maximum retry attempts reached'
+          message: 'Maximum retry attempts reached. Please try starting transcription again.'
         });
       }
     }
   }
 
   private handleEnd() {
-    console.log('Speech recognition ended');
+    console.log(`🎤 [${this.instanceId}] Speech recognition ended`);
 
-    if (this.isTranscribing && this.retryCount < this.maxRetries) {
-      console.log('Recognition ended while transcribing, attempting to reconnect...');
-      this.attemptReconnect();
+    // Clear the active flag immediately
+    (window as any).speechRecognitionActive = false;
+
+    // Only attempt to restart if we're supposed to be transcribing and this is the active instance
+    if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
+      console.log(`🎤 [${this.instanceId}] Recognition ended while transcribing, restarting automatically...`);
+
+      // Restart immediately for continuous transcription
+      setTimeout(() => {
+        if (this.isTranscribing && (window as any).currentTranscriptionService === this && this.recognition) {
+          try {
+            console.log(`🎤 [${this.instanceId}] Auto-restarting speech recognition for continuous transcription`);
+            (window as any).speechRecognitionActive = true;
+            this.recognition.start();
+          } catch (error) {
+            console.error(`🎤 [${this.instanceId}] Error auto-restarting recognition:`, error);
+            (window as any).speechRecognitionActive = false;
+
+            // If auto-restart fails, use the regular reconnect logic
+            this.attemptReconnect();
+          }
+        } else {
+          console.log(`🎤 [${this.instanceId}] Not auto-restarting - conditions not met`);
+        }
+      }, 100); // Very short delay to avoid rapid cycling
     } else {
+      console.log(`🎤 [${this.instanceId}] Recognition ended - stopping transcription`);
       this.isTranscribing = false;
-      // Clear global flag when recognition ends
-      (window as any).speechRecognitionActive = false;
+
       this.socket.emit('transcription-status', {
         roomId: this.roomId,
-        status: 'ended'
+        status: 'ended',
+        instanceId: this.instanceId
       });
     }
   }
 
   private handleResult(event: any) {
     try {
+      if (!event.results || event.results.length === 0) {
+        console.log(`🎤 [${this.instanceId}] No results in event`);
+        return;
+      }
+
       const result = event.results[event.results.length - 1];
-      const transcript = result[0].transcript.trim();
+      if (!result || !result[0]) {
+        console.log(`🎤 [${this.instanceId}] Invalid result structure`);
+        return;
+      }
 
-      if (result.isFinal && transcript) {
-        console.log(`🎤 [${this.instanceId}] Final Transcript:`, {
-          transcript,
-          confidence: result[0].confidence,
-          total: this.transcripts.length + 1
-        });
+      const transcript = result[0].transcript?.trim();
+      const confidence = result[0].confidence || 0;
 
-        this.transcripts.push(transcript);
-
-        // Emit transcript if socket is connected and this is the active instance
-        if (this.isConnected && this.socket.connected && (window as any).currentTranscriptionService === this) {
-          this.socket.emit('transcription', {
-            roomId: this.roomId,
-            transcript: transcript,
-            timestamp: Date.now(),
-            confidence: result[0].confidence
+      // Handle both interim and final results
+      if (transcript) {
+        if (result.isFinal) {
+          console.log(`🎤 [${this.instanceId}] Final Transcript:`, {
+            transcript,
+            confidence,
+            total: this.transcripts.length + 1
           });
+
+          // Only store and emit final results
+          this.transcripts.push(transcript);
+
+          // Emit transcript if socket is connected and this is the active instance
+          if (this.isConnected && this.socket.connected && (window as any).currentTranscriptionService === this) {
+            this.socket.emit('transcription', {
+              roomId: this.roomId,
+              transcript: transcript,
+              timestamp: Date.now(),
+              confidence: confidence,
+              isFinal: true,
+              instanceId: this.instanceId
+            });
+          }
+        } else {
+          // Log interim results for debugging but don't store them
+          console.log(`🎤 [${this.instanceId}] Interim Transcript:`, transcript.substring(0, 50) + (transcript.length > 50 ? '...' : ''));
+
+          // Optionally emit interim results for real-time display
+          if (this.isConnected && this.socket.connected && (window as any).currentTranscriptionService === this) {
+            this.socket.emit('transcription-interim', {
+              roomId: this.roomId,
+              transcript: transcript,
+              timestamp: Date.now(),
+              confidence: confidence,
+              isFinal: false,
+              instanceId: this.instanceId
+            });
+          }
         }
       }
     } catch (error) {
@@ -323,7 +560,8 @@ export class TranscriptionService {
         this.socket.emit('transcription-error', {
           roomId: this.roomId,
           error: 'result_handling_error',
-          message: error instanceof Error ? error.message : 'Unknown error processing transcription result'
+          message: error instanceof Error ? error.message : 'Unknown error processing transcription result',
+          instanceId: this.instanceId
         });
       }
     }
@@ -338,14 +576,32 @@ export class TranscriptionService {
       };
     }
 
-    // Check microphone permissions first
+    // Request microphone access explicitly first
+    try {
+      console.log(`🎤 [${this.instanceId}] Requesting microphone access...`);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log(`🎤 [${this.instanceId}] Microphone access granted`);
+
+      // Stop the stream immediately as we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      console.error(`🎤 [${this.instanceId}] Microphone access denied:`, error);
+      return {
+        success: false,
+        error: 'Microphone access denied. Please allow microphone access and try again.'
+      };
+    }
+
+    // Check microphone permissions
     try {
       const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log(`🎤 [${this.instanceId}] Microphone permission state:`, permission.state);
+
       if (permission.state === 'denied') {
         console.error(`🎤 [${this.instanceId}] Microphone permission denied`);
         return {
           success: false,
-          error: 'Microphone permission denied'
+          error: 'Microphone permission denied. Please enable microphone access in your browser settings.'
         };
       }
     } catch (error) {
@@ -368,22 +624,28 @@ export class TranscriptionService {
         // Check if speech recognition is already running globally
         if ((window as any).speechRecognitionActive) {
           console.warn(`🎤 [${this.instanceId}] Speech recognition is already active`);
-          return {
-            success: false,
-            error: 'Speech recognition is already active'
-          };
+          // Stop the existing one first
+          (window as any).speechRecognitionActive = false;
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        console.log(`🎤 [${this.instanceId}] Starting speech recognition`);
+        console.log(`🎤 [${this.instanceId}] Starting speech recognition with enhanced settings`);
+
+        // Enhanced recognition settings for better stability
+        this.recognition.continuous = true;
+        this.recognition.interimResults = true;
+        this.recognition.maxAlternatives = 1;
+
         (window as any).speechRecognitionActive = true;
         this.recognition.start();
         this.isTranscribing = true;
+
+        console.log(`🎤 [${this.instanceId}] Speech recognition started successfully`);
         return { success: true };
       } catch (error) {
         console.error(`🎤 [${this.instanceId}] Error starting transcription:`, error);
         (window as any).speechRecognitionActive = false;
 
-        // Don't attempt reconnect on start failure, just return error
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to start transcription'

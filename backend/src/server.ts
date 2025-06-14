@@ -187,21 +187,47 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle transcription events
+  // Handle transcription events with multi-user support
   socket.on('transcription', (data) => {
-    const { roomId, transcript, speaker, timestamp } = data;
-    console.log('Received transcription:', { roomId, transcript, speaker });
-
-    // Broadcast transcription to all users in the room
-    socket.to(roomId).emit('transcription', {
-      transcript,
-      speaker: speaker || 'Unknown',
-      timestamp: timestamp || new Date().toISOString(),
-      socketId: socket.id
+    const { roomId, transcript, speaker, timestamp, instanceId, isFinal } = data;
+    console.log('Received transcription:', {
+      roomId,
+      transcript: transcript.substring(0, 50) + (transcript.length > 50 ? '...' : ''),
+      speaker,
+      socketId: socket.id,
+      instanceId,
+      isFinal
     });
 
-    // Save transcription to database
-    saveTranscription(roomId, transcript, speaker || 'Unknown', timestamp || new Date().toISOString());
+    // Only process final transcriptions for storage and broadcast
+    if (isFinal) {
+      // Broadcast transcription to all users in the room (including sender for confirmation)
+      io.to(roomId).emit('transcription', {
+        transcript,
+        speaker: speaker || `User-${socket.id.substring(0, 6)}`,
+        timestamp: timestamp || new Date().toISOString(),
+        socketId: socket.id,
+        instanceId
+      });
+
+      // Save transcription to database
+      saveTranscription(roomId, transcript, speaker || `User-${socket.id.substring(0, 6)}`, timestamp || new Date().toISOString());
+    }
+  });
+
+  // Handle interim transcription results (for real-time display)
+  socket.on('transcription-interim', (data) => {
+    const { roomId, transcript, instanceId } = data;
+
+    // Only broadcast interim results to other users (not back to sender)
+    socket.to(roomId).emit('transcription-interim', {
+      transcript,
+      speaker: `User-${socket.id.substring(0, 6)}`,
+      timestamp: new Date().toISOString(),
+      socketId: socket.id,
+      instanceId,
+      isInterim: true
+    });
   });
 
   // Handle transcription status updates

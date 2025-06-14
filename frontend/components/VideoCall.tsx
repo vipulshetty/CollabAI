@@ -1,6 +1,18 @@
 'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+// Icons as simple components
+const ChevronLeftIcon = ({ className }: { className: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const ChevronRightIcon = ({ className }: { className: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
+);
 import { useAuth } from '@/contexts/AuthContext';
 import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoControls from './VideoControls';
@@ -17,35 +29,56 @@ interface VideoCallProps {
   peerId: string;
 }
 
+// Enhanced grid layout for unlimited participants with pagination
 const getGridLayout = (totalParticipants: number, showChat: boolean): string => {
-  // Mobile-first responsive grid
+  // Mobile-first responsive grid with better scaling
   if (totalParticipants <= 1) return 'grid-cols-1';
-  if (totalParticipants === 2) return showChat ? 'grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
-  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2';
-  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
-  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
-  return showChat ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+  if (totalParticipants === 2) return showChat ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
+  if (totalParticipants <= 4) return showChat ? 'grid-cols-2 lg:grid-cols-2' : 'grid-cols-2 lg:grid-cols-2';
+  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
+  if (totalParticipants <= 9) return showChat ? 'grid-cols-3 lg:grid-cols-3' : 'grid-cols-3 lg:grid-cols-3';
+  if (totalParticipants <= 12) return showChat ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 lg:grid-cols-4';
+  if (totalParticipants <= 16) return showChat ? 'grid-cols-4 lg:grid-cols-4' : 'grid-cols-4 lg:grid-cols-4';
+  // For very large groups, use 4x4 grid with pagination
+  return showChat ? 'grid-cols-4 lg:grid-cols-4' : 'grid-cols-4 lg:grid-cols-5';
 };
 
 const getGridSize = (totalParticipants: number, showChat: boolean): string => {
-  // Use margin instead of padding for better layout control
+  // Dynamic sizing based on participant count
   if (showChat) {
     if (totalParticipants <= 1) {
       return 'h-full max-w-4xl mx-auto mr-80 xl:mr-96 transition-all duration-300';
     }
-    return 'h-full w-full mr-80 xl:mr-96 transition-all duration-300';
+    if (totalParticipants <= 4) {
+      return 'h-full w-full mr-80 xl:mr-96 transition-all duration-300';
+    }
+    // For larger groups, use full width with chat
+    return 'h-full w-full mr-80 xl:mr-96 transition-all duration-300 overflow-hidden';
   }
 
   if (totalParticipants <= 1) {
     return 'h-full max-w-4xl mx-auto transition-all duration-300';
   }
-  return 'h-full w-full transition-all duration-300';
+  if (totalParticipants <= 4) {
+    return 'h-full w-full max-w-6xl mx-auto transition-all duration-300';
+  }
+  // For larger groups, use full width
+  return 'h-full w-full transition-all duration-300 overflow-hidden';
 };
 
 const getVideoAspect = (totalParticipants: number): string => {
   if (totalParticipants <= 1) return 'aspect-video';
   if (totalParticipants <= 4) return 'aspect-video';
+  if (totalParticipants <= 9) return 'aspect-video';
+  // For large groups, use square aspect ratio to fit more participants
   return 'aspect-square';
+};
+
+// Calculate participants per page for pagination
+const getParticipantsPerPage = (totalParticipants: number, showChat: boolean): number => {
+  if (totalParticipants <= 9) return totalParticipants;
+  if (totalParticipants <= 16) return showChat ? 12 : 16;
+  return showChat ? 12 : 20; // Maximum participants per page
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
@@ -57,14 +90,13 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const router = useRouter();
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const { endMeeting, currentMeeting } = useMeetingContext();
+  const { currentMeeting } = useMeetingContext();
   const [showChat, setShowChat] = useState(true);
   const [socketReady, setSocketReady] = useState(false);
   const [transcriptionService, setTranscriptionService] = useState<TranscriptionService | null>(null);
   const [transcripts, setTranscripts] = useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const isEndingRef = useRef(false);
-  const endCallTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const recordingServiceRef = useRef<RecordingService | null>(null);
@@ -76,6 +108,26 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [peerConnections, setPeerConnections] = useState<{ [key: string]: RTCPeerConnection }>({});
   const [remoteStreams, setRemoteStreams] = useState<{ [key: string]: MediaStream }>({});
   const [pendingCandidates, setPendingCandidates] = useState<{ [key: string]: RTCIceCandidateInit[] }>({});
+
+  // Pagination state for large groups
+  const [currentPage, setCurrentPage] = useState(0);
+  const participantsPerPage = getParticipantsPerPage(participants.length + 1, showChat);
+  const totalPages = Math.ceil((participants.length + 1) / participantsPerPage);
+
+  // Transcription status and notifications
+  const [transcriptionError, setTranscriptionError] = useState<string>('');
+  const [showTranscriptionStatus, setShowTranscriptionStatus] = useState(false);
+  const [deviceConflictWarning, setDeviceConflictWarning] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState<string>('');
+
+  // Get participants for current page
+  const getCurrentPageParticipants = () => {
+    const startIndex = currentPage * participantsPerPage;
+    const endIndex = startIndex + participantsPerPage - 1; // -1 to account for local user
+    return participants.slice(startIndex, endIndex);
+  };
+
+  const visibleParticipants = getCurrentPageParticipants();
 
   // Event handler functions
   const handleUserJoined = useCallback(async (data: any) => {
@@ -580,14 +632,59 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       });
 
       // Listen for transcription updates
-      socket?.on('transcription', (data) => {
+      socket?.on('transcription', (data: any) => {
         console.log('Received transcription:', data);
-        setTranscripts(prev => [...prev, data.transcript]);
-        handleTranscriptionResult(data);
+
+        // Only add to transcripts if it's from a different user or confirmed from server
+        if (data.socketId !== socket.id || data.confirmed) {
+          setTranscripts(prev => [...prev, `${data.speaker}: ${data.transcript}`]);
+          handleTranscriptionResult(data);
+        }
       });
 
-      socket?.on('transcription-error', (error) => {
+      // Listen for interim transcription results
+      socket?.on('transcription-interim', (data: any) => {
+        if (data.socketId !== socket.id) {
+          setInterimTranscript(`${data.speaker}: ${data.transcript}`);
+
+          // Clear interim transcript after 3 seconds
+          setTimeout(() => {
+            setInterimTranscript('');
+          }, 3000);
+        }
+      });
+
+      socket?.on('transcription-error', (error: any) => {
         console.error('Transcription error:', error);
+        setTranscriptionError(error.message || error.error || 'Transcription error occurred');
+        setShowTranscriptionStatus(true);
+
+        // Auto-hide error after 5 seconds
+        setTimeout(() => {
+          setShowTranscriptionStatus(false);
+          setTranscriptionError('');
+        }, 5000);
+      });
+
+      socket?.on('transcription-permission-denied', () => {
+        setTranscriptionError('Microphone permission denied. Please allow microphone access and try again.');
+        setShowTranscriptionStatus(true);
+        setIsTranscribing(false);
+      });
+
+      socket?.on('transcription-device-error', () => {
+        setTranscriptionError('No microphone found. Please check your microphone connection.');
+        setShowTranscriptionStatus(true);
+        setIsTranscribing(false);
+      });
+
+      // Detect potential device conflicts
+      socket?.on('user-joined', (data: any) => {
+        if (isTranscribing && participants.length === 0) {
+          // First user joining while we're transcribing - potential same device issue
+          setDeviceConflictWarning(true);
+          setTimeout(() => setDeviceConflictWarning(false), 10000);
+        }
       });
 
       return () => {
@@ -1009,24 +1106,55 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             delay: 2
           }}
         />
+        {/* Pagination Controls for Large Groups */}
+        {totalPages > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 flex items-center space-x-2 bg-black/50 backdrop-blur-md rounded-full px-4 py-2"
+          >
+            <button
+              onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+              disabled={currentPage === 0}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronLeftIcon className="w-4 h-4 text-white" />
+            </button>
+            <span className="text-white text-sm font-medium px-2">
+              {currentPage + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+              disabled={currentPage === totalPages - 1}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRightIcon className="w-4 h-4 text-white" />
+            </button>
+            <div className="ml-2 text-white text-xs">
+              {participants.length + 1} participants
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className={`p-6 pb-24 transition-all duration-300 ${getGridSize(participants.length + 1, showChat)}`}
+          className={`p-6 pb-24 transition-all duration-300 ${getGridSize(visibleParticipants.length + 1, showChat)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-6 auto-rows-fr`}>
+          <div className={`h-full grid ${getGridLayout(visibleParticipants.length + 1, showChat)} gap-4 auto-rows-fr`}>
+            {/* Always show local user first */}
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
+              className={`relative ${getVideoAspect(visibleParticipants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
             >
               <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
                 {isVideoOff ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-900/95">
                     <div className="text-center">
-                      <div className="w-24 h-24 mx-auto mb-4 relative rounded-full overflow-hidden ring-4 ring-indigo-500/30">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-2 sm:mb-4 relative rounded-full overflow-hidden ring-4 ring-indigo-500/30">
                         {user?.user_metadata?.avatar_url ? (
                           <Image
                             src={user.user_metadata.avatar_url}
@@ -1037,17 +1165,17 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                           />
                         ) : (
                           <div className="w-full h-full bg-indigo-500 flex items-center justify-center">
-                            <span className="text-2xl font-semibold text-white">
+                            <span className="text-lg sm:text-xl lg:text-2xl font-semibold text-white">
                               {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                             </span>
                           </div>
                         )}
                       </div>
-                      <p className="text-gray-400 text-sm font-medium">
-                        Camera is turned off
+                      <p className="text-gray-400 text-xs sm:text-sm font-medium">
+                        Camera is off
                       </p>
-                      <p className="text-gray-500 text-xs mt-1">
-                        {user?.user_metadata?.full_name || user?.email || 'User'}
+                      <p className="text-gray-500 text-xs mt-1 truncate max-w-full">
+                        {user?.user_metadata?.full_name || user?.email || 'You'}
                       </p>
                     </div>
                   </div>
@@ -1063,7 +1191,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                       objectFit: 'cover',
                       transform: isVideoOff ? 'scaleX(0)' : 'scaleX(1)',
                       transition: 'transform 0.3s ease',
-                      // Mobile optimizations
                       willChange: 'transform',
                       backfaceVisibility: 'hidden',
                       WebkitBackfaceVisibility: 'hidden'
@@ -1071,11 +1198,15 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     className="rounded-lg"
                   />
                 )}
+                {/* Local user indicator */}
+                <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1">
+                  <span className="text-white text-xs font-medium">You</span>
+                </div>
               </div>
             </motion.div>
-            
+
             <AnimatePresence mode="popLayout">
-              {participants.map((participantId, index) => {
+              {visibleParticipants.map((participantId, index) => {
                 const stream = remoteStreams[participantId];
                 const userInfo = participantInfo[participantId];
                 console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0, 'userInfo:', userInfo);
@@ -1087,7 +1218,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                    className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
+                    className={`relative ${getVideoAspect(visibleParticipants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
                   >
                     <ParticipantVideo
                       participantId={participantId}
@@ -1196,10 +1327,107 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               transition={{ duration: 0.2 }}
               className="absolute inset-4 z-50 bg-black/50 backdrop-blur-md rounded-xl flex items-center justify-center"
             >
-              <Whiteboard 
-                isOpen={showWhiteboard} 
-                onClose={() => setShowWhiteboard(false)} 
+              <Whiteboard
+                isOpen={showWhiteboard}
+                onClose={() => setShowWhiteboard(false)}
               />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Transcription Status Notification */}
+        <AnimatePresence>
+          {showTranscriptionStatus && transcriptionError && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md"
+            >
+              <div className="bg-red-500/90 backdrop-blur-md text-white px-4 py-3 rounded-lg shadow-lg border border-red-400/50">
+                <div className="flex items-center space-x-2">
+                  <div className="flex-shrink-0">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Transcription Error</p>
+                    <p className="text-xs mt-1 opacity-90">{transcriptionError}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowTranscriptionStatus(false);
+                      setTranscriptionError('');
+                    }}
+                    className="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Transcription Success Status */}
+        <AnimatePresence>
+          {isTranscribing && !transcriptionError && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="absolute top-4 right-4 z-40 bg-green-500/90 backdrop-blur-md text-white px-3 py-2 rounded-full shadow-lg border border-green-400/50"
+            >
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">Transcribing</span>
+                {interimTranscript && (
+                  <span className="text-xs opacity-75 ml-2 max-w-32 truncate">
+                    {interimTranscript}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Device Conflict Warning */}
+        <AnimatePresence>
+          {deviceConflictWarning && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md"
+            >
+              <div className="bg-yellow-500/90 backdrop-blur-md text-white px-4 py-3 rounded-lg shadow-lg border border-yellow-400/50">
+                <div className="flex items-center space-x-2">
+                  <div className="flex-shrink-0">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Same Device Detected</p>
+                    <p className="text-xs mt-1 opacity-90">
+                      Testing on the same device? Use headphones and enable transcription on only one tab to avoid conflicts.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setDeviceConflictWarning(false)}
+                    className="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
