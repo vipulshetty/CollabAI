@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function VideoCallLayout({
@@ -10,17 +10,16 @@ export default function VideoCallLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
-
 
   useEffect(() => {
     if (!loading && !user) {
       // Preserve the current meeting URL for redirect after sign-in
-      const currentPath = window.location.pathname;
-      const redirectUrl = `/auth/signin?next=${encodeURIComponent(currentPath)}`;
+      const redirectUrl = `/auth/signin?next=${encodeURIComponent(pathname)}`;
       router.push(redirectUrl);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
