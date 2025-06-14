@@ -126,18 +126,27 @@ const io = new Server(httpServer, {
 io.on('connection', (socket) => {
   console.log('🔵 BACKEND: Client connected:', socket.id);
 
+  // Store user info on socket
+  let userInfo = null;
+
   // Add debugging for all events
   socket.onAny((eventName, ...args) => {
     console.log(`🔵 BACKEND: Received event "${eventName}" from ${socket.id}:`, args);
   });
 
-  // Handle room joining
+  // Handle room joining with user info
   socket.on('join-room', (data) => {
-    const { roomId } = data;
+    const { roomId, userInfo: userData } = data;
+    userInfo = userData;
     socket.join(roomId);
-    console.log(`🔵 Socket ${socket.id} joined room ${roomId}`);
+    console.log(`🔵 Socket ${socket.id} joined room ${roomId} with user info:`, userData);
     console.log(`🔵 Notifying room ${roomId} that ${socket.id} joined`);
-    socket.to(roomId).emit('user-joined', socket.id);
+
+    // Send user info along with join notification
+    socket.to(roomId).emit('user-joined', {
+      socketId: socket.id,
+      userInfo: userData
+    });
   });
 
   // WebRTC signaling events

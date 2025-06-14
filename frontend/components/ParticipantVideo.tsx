@@ -11,6 +11,8 @@ interface ParticipantVideoProps {
   isLocal?: boolean;
   isVideoOff?: boolean;
   profileImage?: string;
+  participantName?: string;
+  participantEmail?: string;
 }
 
 function getInitials(name: string): string {
@@ -22,13 +24,15 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export default function ParticipantVideo({ 
-  participantId, 
-  layout, 
-  stream, 
+export default function ParticipantVideo({
+  participantId,
+  layout,
+  stream,
   isLocal,
   isVideoOff,
-  profileImage 
+  profileImage,
+  participantName,
+  participantEmail
 }: ParticipantVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasVideoTrack, setHasVideoTrack] = useState(true);
@@ -103,7 +107,7 @@ export default function ParticipantVideo({
             </div>
           ) : (
             <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-semibold">
-              {getInitials(isLocal ? 'You' : `Participant ${participantId}`)}
+              {getInitials(isLocal ? 'You' : (participantName || `User ${participantId.slice(-4)}`)}
             </div>
           )}
           <div className="absolute top-4 right-4">
@@ -130,7 +134,7 @@ export default function ParticipantVideo({
         />
       )}
       <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-xl px-4 py-2 rounded-xl text-white text-sm font-medium border border-white/10 shadow-lg">
-        {isLocal ? 'You' : `Participant ${participantId}`}
+        {isLocal ? 'You' : (participantName || `User ${participantId.slice(-4)}`)}
       </div>
 
       {/* Connection Status Indicator */}

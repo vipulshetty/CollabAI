@@ -18,12 +18,13 @@ interface VideoCallProps {
 }
 
 const getGridLayout = (totalParticipants: number, showChat: boolean): string => {
+  // Mobile-first responsive grid
   if (totalParticipants <= 1) return 'grid-cols-1';
-  if (totalParticipants === 2) return showChat ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 lg:grid-cols-2';
-  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-2';
-  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-3';
-  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-3';
-  return showChat ? 'grid-cols-3 xl:grid-cols-4' : 'grid-cols-4';
+  if (totalParticipants === 2) return showChat ? 'grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
+  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2';
+  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
+  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
+  return showChat ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 };
 
 const getGridSize = (totalParticipants: number, showChat: boolean): string => {
@@ -51,7 +52,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const { user } = useAuth();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [participantInfo, setParticipantInfo] = useState<{ [socketId: string]: { name: string; email: string; avatar?: string } }>({});
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const router = useRouter();
@@ -77,13 +78,24 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const [pendingCandidates, setPendingCandidates] = useState<{ [key: string]: RTCIceCandidateInit[] }>({});
 
   // Event handler functions
-  const handleUserJoined = useCallback(async (userId: string) => {
-    console.log('🔵 User joined:', userId, 'My socket ID:', socketRef.current?.id);
+  const handleUserJoined = useCallback(async (data: any) => {
+    const userId = typeof data === 'string' ? data : data.socketId;
+    const userInfo = typeof data === 'object' ? data.userInfo : null;
+
+    console.log('🔵 User joined:', userId, 'with info:', userInfo, 'My socket ID:', socketRef.current?.id);
 
     // Don't create connection to ourselves
     if (userId === socketRef.current?.id) {
       console.log('🔵 Ignoring self connection');
       return;
+    }
+
+    // Store user info if provided
+    if (userInfo) {
+      setParticipantInfo(prev => ({
+        ...prev,
+        [userId]: userInfo
+      }));
     }
 
     // Create new peer connection for the user with production-ready STUN servers
@@ -350,39 +362,75 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   useEffect(() => {
     const initializeMedia = async () => {
       try {
+        // Mobile-friendly constraints
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
         const constraints = {
-          video: {
-            width: { min: 640, ideal: 1024, max: 1024 },
-            height: { min: 480, ideal: 576, max: 576 },
-            frameRate: { min: 15, ideal: 15, max: 15 },
+          video: isMobile ? {
+            width: { min: 320, ideal: 640, max: 1280 },
+            height: { min: 240, ideal: 480, max: 720 },
+            frameRate: { min: 10, ideal: 15, max: 30 },
+            facingMode: 'user'
+          } : {
+            width: { min: 640, ideal: 1024, max: 1920 },
+            height: { min: 480, ideal: 576, max: 1080 },
+            frameRate: { min: 15, ideal: 24, max: 30 },
             facingMode: 'user'
           },
-          audio: true
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: isMobile ? 16000 : 44100
+          }
         };
 
+        console.log('🎥 Requesting media with constraints:', constraints);
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
+
         // Set initial track states
         stream.getVideoTracks().forEach(track => {
           track.enabled = true;
+          console.log('🎥 Video track settings:', track.getSettings());
         });
         stream.getAudioTracks().forEach(track => {
           track.enabled = !isMuted;
+          console.log('🎤 Audio track settings:', track.getSettings());
         });
 
         setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
+
+        console.log('🎥 Media initialized successfully');
       } catch (error) {
         console.error('Error accessing media devices:', error);
-        setIsVideoOff(true);
-        setIsMuted(true);
+
+        // Try fallback constraints for mobile
+        try {
+          console.log('🎥 Trying fallback constraints...');
+          const fallbackConstraints = {
+            video: { facingMode: 'user' },
+            audio: true
+          };
+
+          const stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          setLocalStream(stream);
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+          console.log('🎥 Fallback media initialized');
+        } catch (fallbackError) {
+          console.error('Fallback media access failed:', fallbackError);
+          setIsVideoOff(true);
+          setIsMuted(true);
+        }
       }
     };
 
     initializeMedia();
-    
+
     return () => {
       if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -450,8 +498,13 @@ export default function VideoCall({ peerId }: VideoCallProps) {
         // Add a small delay to ensure connection is stable
         setTimeout(() => {
           console.log('🔵 FRONTEND: About to emit join-room event');
-          socket.emit('join-room', { roomId: peerId });
-          console.log('🔵 FRONTEND: join-room event emitted with roomId:', peerId);
+          const userInfo = {
+            name: user?.user_metadata?.full_name || user?.email || 'Anonymous User',
+            email: user?.email || '',
+            avatar: user?.user_metadata?.avatar_url || ''
+          };
+          socket.emit('join-room', { roomId: peerId, userInfo });
+          console.log('🔵 FRONTEND: join-room event emitted with roomId:', peerId, 'and userInfo:', userInfo);
         }, 100);
       });
 
@@ -472,8 +525,13 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
         setTimeout(() => {
           console.log('🔵 FRONTEND: About to emit join-room event (already connected)');
-          socket.emit('join-room', { roomId: peerId });
-          console.log('🔵 FRONTEND: join-room event emitted (already connected) with roomId:', peerId);
+          const userInfo = {
+            name: user?.user_metadata?.full_name || user?.email || 'Anonymous User',
+            email: user?.email || '',
+            avatar: user?.user_metadata?.avatar_url || ''
+          };
+          socket.emit('join-room', { roomId: peerId, userInfo });
+          console.log('🔵 FRONTEND: join-room event emitted (already connected) with roomId:', peerId, 'and userInfo:', userInfo);
         }, 100);
       }
 
@@ -999,9 +1057,18 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     autoPlay
                     playsInline
                     muted
-                    className={`w-full h-full object-cover transform ${
-                      isVideoOff ? 'scale-x-0' : 'scale-x-100'
-                    } transition-transform duration-300`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transform: isVideoOff ? 'scaleX(0)' : 'scaleX(1)',
+                      transition: 'transform 0.3s ease',
+                      // Mobile optimizations
+                      willChange: 'transform',
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden'
+                    }}
+                    className="rounded-lg"
                   />
                 )}
               </div>
@@ -1010,7 +1077,8 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             <AnimatePresence mode="popLayout">
               {participants.map((participantId, index) => {
                 const stream = remoteStreams[participantId];
-                console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0);
+                const userInfo = participantInfo[participantId];
+                console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0, 'userInfo:', userInfo);
 
                 return (
                   <motion.div
@@ -1027,7 +1095,9 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                       stream={stream}
                       isLocal={false}
                       isVideoOff={!stream}
-                      profileImage={undefined}
+                      profileImage={userInfo?.avatar}
+                      participantName={userInfo?.name}
+                      participantEmail={userInfo?.email}
                     />
                   </motion.div>
                 );
