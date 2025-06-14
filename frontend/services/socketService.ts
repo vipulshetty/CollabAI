@@ -1,27 +1,12 @@
 import { io, Socket } from 'socket.io-client';
-import { backendWakeupService } from './backendWakeupService';
 
 class SocketService {
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private isConnecting = false;
 
-  async initSocket() {
-    if (this.isConnecting) {
-      console.log('🔄 Socket connection already in progress...');
-      return this.socket;
-    }
-
+  initSocket() {
     if (!this.socket || this.socket.disconnected) {
-      this.isConnecting = true;
-
-      // Wake up backend first if in production
-      if (process.env.NODE_ENV === 'production') {
-        console.log('🚀 Ensuring backend is awake before connecting...');
-        await backendWakeupService.ensureBackendAwake();
-      }
-
       // Use production URL consistently
       const socketUrl = process.env.NODE_ENV === 'production'
         ? 'https://collabai.onrender.com'
@@ -34,27 +19,23 @@ class SocketService {
         this.socket.disconnect();
       }
 
-      // Production-ready socket configuration with better timeouts
+      // Production-ready socket configuration
       this.socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 2000, // Increased delay
-        reconnectionDelayMax: 10000, // Increased max delay
-        timeout: 30000, // Increased timeout for slow servers
-        withCredentials: false,
-        forceNew: false,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        withCredentials: false, // Set to false for cross-origin
+        forceNew: false, // Don't force new connection every time
         // Additional production settings
         upgrade: true,
         rememberUpgrade: true,
-        autoConnect: true,
-        // Polling settings for better reliability
-        forceBase64: false,
-        enablesXDR: false
+        autoConnect: true
       });
 
       this.setupEventListeners();
-      this.isConnecting = false;
     }
     return this.socket;
   }

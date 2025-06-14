@@ -71,21 +71,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check endpoint to prevent server sleeping
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage()
-  });
-});
-
-// Keep-alive endpoint for Render free tier
-app.get('/ping', (req, res) => {
-  res.status(200).send('pong');
-});
-
 // Health check endpoint for deployment monitoring
 app.get('/health', (req, res) => {
   res.status(200).json({

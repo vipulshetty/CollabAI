@@ -6,8 +6,6 @@ import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoControls from './VideoControls';
 import ParticipantVideo from './ParticipantVideo';
 import ChatSystem from './ChatSystem';
-import MeetingHeader from './MeetingHeader';
-import { ConnectionStatus } from './ConnectionStatus';
 import { socketService } from '@/services/socketService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
@@ -20,15 +18,13 @@ interface VideoCallProps {
 }
 
 const getGridLayout = (totalParticipants: number, showChat: boolean): string => {
-  // Optimized grid layout for better scaling
+  // Mobile-first responsive grid
   if (totalParticipants <= 1) return 'grid-cols-1';
-  if (totalParticipants === 2) return showChat ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2';
-  if (totalParticipants === 3) return showChat ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-  if (totalParticipants === 4) return showChat ? 'grid-cols-2 lg:grid-cols-2' : 'grid-cols-2';
-  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 md:grid-cols-3';
-  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-3';
-  if (totalParticipants <= 12) return showChat ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 md:grid-cols-4';
-  return showChat ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-4 md:grid-cols-5';
+  if (totalParticipants === 2) return showChat ? 'grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
+  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2';
+  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
+  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
+  return showChat ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 };
 
 const getGridSize = (totalParticipants: number, showChat: boolean): string => {
@@ -48,10 +44,8 @@ const getGridSize = (totalParticipants: number, showChat: boolean): string => {
 
 const getVideoAspect = (totalParticipants: number): string => {
   if (totalParticipants <= 1) return 'aspect-video';
-  if (totalParticipants <= 2) return 'aspect-video';
   if (totalParticipants <= 4) return 'aspect-video';
-  if (totalParticipants <= 6) return 'aspect-video';
-  return 'aspect-square'; // For 7+ participants, use square aspect ratio
+  return 'aspect-square';
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
@@ -66,7 +60,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const { endMeeting, currentMeeting } = useMeetingContext();
   const [showChat, setShowChat] = useState(true);
   const [socketReady, setSocketReady] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [transcriptionService, setTranscriptionService] = useState<TranscriptionService | null>(null);
   const [transcripts, setTranscripts] = useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -454,63 +447,39 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [localStream]);
 
   useEffect(() => {
-    const setupSocket = async () => {
+    const setupSocket = () => {
       try {
         // Only create socket if we don't have one
         if (!socketRef.current || socketRef.current.disconnected) {
-          console.log('🔌 Initializing socket connection...');
-          setIsConnecting(true);
-          socketRef.current = await socketService.initSocket();
-          setIsConnecting(false);
+          socketRef.current = socketService.initSocket();
 
           if (socketRef.current) {
             socketRef.current.on('connect', () => {
-              console.log('✅ Socket connected successfully');
+              console.log('Socket connected');
               setSocketReady(true);
             });
 
-            socketRef.current.on('disconnect', (reason) => {
+            socketRef.current.on('disconnect', () => {
               if (!isEndingRef.current) {
-                console.log('❌ Socket disconnected:', reason);
+                console.log('Socket disconnected');
                 setSocketReady(false);
               }
             });
 
-            socketRef.current.on('connect_error', (error: any) => {
-              console.error('🔴 Socket connection error:', error);
-              setSocketReady(false);
-            });
-
             socketRef.current.on('error', (error: any) => {
-              console.error('🔴 Socket error:', error);
-            });
-
-            // Add reconnection handling
-            socketRef.current.on('reconnect', (attemptNumber) => {
-              console.log('🔄 Socket reconnected after', attemptNumber, 'attempts');
-              setSocketReady(true);
-            });
-
-            socketRef.current.on('reconnect_attempt', (attemptNumber) => {
-              console.log('🔄 Socket reconnection attempt:', attemptNumber);
-            });
-
-            socketRef.current.on('reconnect_failed', () => {
-              console.error('❌ Socket reconnection failed');
-              setSocketReady(false);
+              console.error('Socket error:', error);
             });
           }
         }
       } catch (error) {
-        console.error('❌ Socket initialization error:', error);
-        setSocketReady(false);
+        console.error('Socket initialization error:', error);
       }
     };
 
     setupSocket();
 
     return () => {
-      console.log('🧹 Cleaning up socket connection...');
+      console.log('Cleaning up socket connection...');
       // Don't disconnect socket here as it might be reused
       // Only disconnect when component is truly unmounting
     };
@@ -591,13 +560,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     if (socketReady && !transcriptionService) {
       const socket = socketRef.current;
       console.log('🔵 FRONTEND: Socket is ready, setting up transcription service');
-
-      // Store user info globally for transcription
-      (window as any).currentUserInfo = {
-        name: user?.user_metadata?.full_name || user?.email || 'Anonymous User',
-        email: user?.email || '',
-        avatar: user?.user_metadata?.avatar_url || ''
-      };
 
       // Initialize transcription service only if we don't have one
       console.log('🎤 Initializing transcription service for room:', peerId);
@@ -1016,9 +978,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   return (
     <div className="relative h-full w-full">
-      {/* Connection Status */}
-      <ConnectionStatus isConnected={socketReady} isConnecting={isConnecting} />
-
       {/* Professional Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-100 via-gray-50 to-white dark:from-gray-900 dark:via-gray-800 dark:to-black rounded-2xl overflow-hidden">
         {/* Subtle Grid Pattern */}
@@ -1056,12 +1015,12 @@ export default function VideoCall({ peerId }: VideoCallProps) {
           transition={{ duration: 0.5 }}
           className={`p-6 pb-24 transition-all duration-300 ${getGridSize(participants.length + 1, showChat)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-3 md:gap-4 lg:gap-6 auto-rows-fr place-items-center`}>
+          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-6 auto-rows-fr`}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className={`relative ${getVideoAspect(participants.length + 1)} w-full max-w-sm md:max-w-md lg:max-w-lg rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
+              className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
             >
               <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
                 {isVideoOff ? (
@@ -1128,7 +1087,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                    className={`relative ${getVideoAspect(participants.length + 1)} w-full max-w-sm md:max-w-md lg:max-w-lg rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
+                    className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
                   >
                     <ParticipantVideo
                       participantId={participantId}

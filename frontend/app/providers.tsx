@@ -3,7 +3,6 @@
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MeetingProvider } from "@/contexts/MeetingContext";
 import { RecordingProvider } from "@/contexts/RecordingContext";
-import { BackendWakeupProvider } from "@/components/BackendWakeupProvider";
 
 export function Providers({
   children
@@ -11,14 +10,12 @@ export function Providers({
   children: React.ReactNode;
 }) {
   return (
-    <BackendWakeupProvider>
-      <AuthProvider>
-        <MeetingProvider>
-          <RecordingProvider>
-            {children}
-          </RecordingProvider>
-        </MeetingProvider>
-      </AuthProvider>
-    </BackendWakeupProvider>
+    <AuthProvider>
+      <MeetingProvider>
+        <RecordingProvider>
+          {children}
+        </RecordingProvider>
+      </MeetingProvider>
+    </AuthProvider>
   );
 }

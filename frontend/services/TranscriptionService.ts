@@ -103,21 +103,10 @@ export class TranscriptionService {
   private setupRecognition() {
     if (!this.recognition) return;
 
-    // Configure recognition settings for better multi-user support
+    // Configure recognition settings
     this.recognition.lang = this.options.language || 'en-US';
     this.recognition.continuous = this.options.continuous ?? true;
     this.recognition.interimResults = this.options.interimResults ?? true;
-
-    // Enhanced settings for mobile and multi-user scenarios
-    this.recognition.maxAlternatives = 3; // Get multiple alternatives for better accuracy
-
-    // Mobile-specific optimizations
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      // More aggressive settings for mobile
-      this.recognition.continuous = true;
-      this.recognition.interimResults = false; // Reduce processing on mobile
-    }
 
     // Handle recognition start
     this.recognition.onstart = () => {
@@ -135,7 +124,7 @@ export class TranscriptionService {
     this.recognition.onresult = this.handleResult.bind(this);
   }
 
-  private handleError(event: any) {
+  private handleError(event: SpeechRecognitionErrorEvent) {
     const errorDetails = {
       type: event.error,
       message: event.message || 'No error message available',
@@ -318,15 +307,11 @@ export class TranscriptionService {
 
         // Emit transcript if socket is connected and this is the active instance
         if (this.isConnected && this.socket.connected && (window as any).currentTranscriptionService === this) {
-          // Get user info for speaker identification
-          const userInfo = (window as any).currentUserInfo || { name: 'Unknown Speaker' };
-
           this.socket.emit('transcription', {
             roomId: this.roomId,
             transcript: transcript,
             timestamp: Date.now(),
-            confidence: result[0].confidence,
-            speaker: userInfo.name || 'Unknown Speaker'
+            confidence: result[0].confidence
           });
         }
       }
