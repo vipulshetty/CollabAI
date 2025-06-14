@@ -890,21 +890,37 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute inset-0 bg-[#1a1b1e] rounded-2xl overflow-hidden">
-        <motion.div 
+      {/* Beautiful gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 rounded-2xl overflow-hidden">
+        {/* Animated background particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -inset-10 opacity-30">
+            <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+            <div className="absolute top-3/4 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-1000"></div>
+            <div className="absolute bottom-1/4 left-1/2 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-2000"></div>
+          </div>
+        </div>
+
+        {/* Glassmorphism overlay */}
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm"></div>
+
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className={`p-4 ${getGridSize(participants.length + 1)}`}
+          className={`relative z-10 p-6 ${getGridSize(participants.length + 1)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-4 auto-rows-fr`}>
-            <motion.div 
+          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-6 auto-rows-fr`}>
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+              className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-md border border-white/10 shadow-2xl"
             >
-              <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
+              <div className={`relative w-full h-full rounded-2xl overflow-hidden ${isVideoOff ? 'bg-gradient-to-br from-slate-800 to-slate-900' : ''}`}>
+                {/* Glowing border effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-sm"></div>
+                <div className="absolute inset-[1px] bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl"></div>
                 {isVideoOff ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-900/95">
                     <div className="text-center">
