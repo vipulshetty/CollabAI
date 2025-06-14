@@ -126,6 +126,9 @@ const io = new Server(httpServer, {
 io.on('connection', (socket) => {
   console.log('🔵 BACKEND: Client connected:', socket.id);
 
+  // Track which rooms this socket is in
+  let currentRooms: string[] = [];
+
   // Add debugging for all events
   socket.onAny((eventName, ...args) => {
     console.log(`🔵 BACKEND: Received event "${eventName}" from ${socket.id}:`, args);
@@ -135,9 +138,19 @@ io.on('connection', (socket) => {
   socket.on('join-room', (data) => {
     const { roomId } = data;
     socket.join(roomId);
+    currentRooms.push(roomId);
     console.log(`🔵 Socket ${socket.id} joined room ${roomId}`);
     console.log(`🔵 Notifying room ${roomId} that ${socket.id} joined`);
     socket.to(roomId).emit('user-joined', socket.id);
+  });
+
+  // Handle user leaving gracefully
+  socket.on('user-leaving', (data) => {
+    const { roomId } = data;
+    console.log(`🔴 BACKEND: User ${socket.id} leaving room ${roomId}`);
+    socket.to(roomId).emit('user-left', socket.id);
+    socket.leave(roomId);
+    currentRooms = currentRooms.filter(room => room !== roomId);
   });
 
   // WebRTC signaling events
@@ -234,8 +247,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log('🔴 BACKEND: Client disconnected:', socket.id);
+  socket.on('disconnect', (reason) => {
+    console.log('🔴 BACKEND: Client disconnected:', socket.id, 'Reason:', reason);
+
+    // Notify all rooms that this user has disconnected
+    currentRooms.forEach(roomId => {
+      console.log(`🔴 BACKEND: Notifying room ${roomId} that ${socket.id} disconnected`);
+      socket.to(roomId).emit('user-left', socket.id);
+      socket.to(roomId).emit('user-disconnected', socket.id);
+    });
+
+    // Clear the rooms array
+    currentRooms = [];
   });
 });
 

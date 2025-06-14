@@ -156,27 +156,40 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [localStream]);
 
   const handleUserLeft = useCallback((userId: string) => {
-    console.log('User left:', userId);
+    console.log('🔴 User left:', userId);
 
-    // Clean up peer connection
-    if (peerConnections[userId]) {
-      peerConnections[userId].close();
-      setPeerConnections(prev => {
+    // Clean up peer connection using functional update to avoid stale closure
+    setPeerConnections(prev => {
+      const connection = prev[userId];
+      if (connection) {
+        console.log('🔴 Closing peer connection for:', userId);
+        connection.close();
         const newConnections = { ...prev };
         delete newConnections[userId];
         return newConnections;
-      });
-    }
+      }
+      return prev;
+    });
 
     // Clean up remote stream
     setRemoteStreams(prev => {
+      console.log('🔴 Removing remote stream for:', userId);
       const newStreams = { ...prev };
-      delete newStreams[userId];
+      if (newStreams[userId]) {
+        // Stop all tracks in the remote stream
+        newStreams[userId].getTracks().forEach(track => {
+          track.stop();
+        });
+        delete newStreams[userId];
+      }
       return newStreams;
     });
 
-    setParticipants(prev => prev.filter(id => id !== userId));
-  }, [peerConnections]);
+    setParticipants(prev => {
+      console.log('🔴 Removing participant:', userId);
+      return prev.filter(id => id !== userId);
+    });
+  }, []);
 
   const handleOffer = useCallback(async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
     console.log('🟢 Received offer from:', from);
@@ -295,10 +308,35 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
+
+    // Add beforeunload event listener to clean up when page is refreshed/closed
+    const handleBeforeUnload = () => {
+      console.log('🔴 Page unloading, cleaning up...');
+
+      // Stop all media tracks
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      // Close all peer connections
+      Object.values(peerConnections).forEach(pc => pc.close());
+
+      // Notify server that user is leaving
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('user-leaving', { roomId: peerId });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       recordingServiceRef.current = null;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+
+      // Clean up everything when component unmounts
+      handleBeforeUnload();
     };
-  }, []);
+  }, [localStream, peerConnections, peerId]);
 
   useEffect(() => {
     const initializeMedia = async () => {
@@ -487,6 +525,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
     socket.on('user-joined', handleUserJoined);
     socket.on('user-left', handleUserLeft);
+    socket.on('user-disconnected', handleUserLeft); // Handle unexpected disconnections
     socket.on('offer', handleOffer);
     socket.on('answer', handleAnswer);
     socket.on('ice-candidate', handleIceCandidate);
@@ -494,6 +533,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     return () => {
       socket.off('user-joined', handleUserJoined);
       socket.off('user-left', handleUserLeft);
+      socket.off('user-disconnected', handleUserLeft);
       socket.off('offer', handleOffer);
       socket.off('answer', handleAnswer);
       socket.off('ice-candidate', handleIceCandidate);
