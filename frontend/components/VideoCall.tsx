@@ -6,6 +6,8 @@ import { useMeetingContext } from '@/contexts/MeetingContext';
 import VideoControls from './VideoControls';
 import ParticipantVideo from './ParticipantVideo';
 import ChatSystem from './ChatSystem';
+import MeetingHeader from './MeetingHeader';
+import { ConnectionStatus } from './ConnectionStatus';
 import { socketService } from '@/services/socketService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
@@ -64,6 +66,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const { endMeeting, currentMeeting } = useMeetingContext();
   const [showChat, setShowChat] = useState(true);
   const [socketReady, setSocketReady] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [transcriptionService, setTranscriptionService] = useState<TranscriptionService | null>(null);
   const [transcripts, setTranscripts] = useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -451,39 +454,63 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [localStream]);
 
   useEffect(() => {
-    const setupSocket = () => {
+    const setupSocket = async () => {
       try {
         // Only create socket if we don't have one
         if (!socketRef.current || socketRef.current.disconnected) {
-          socketRef.current = socketService.initSocket();
+          console.log('🔌 Initializing socket connection...');
+          setIsConnecting(true);
+          socketRef.current = await socketService.initSocket();
+          setIsConnecting(false);
 
           if (socketRef.current) {
             socketRef.current.on('connect', () => {
-              console.log('Socket connected');
+              console.log('✅ Socket connected successfully');
               setSocketReady(true);
             });
 
-            socketRef.current.on('disconnect', () => {
+            socketRef.current.on('disconnect', (reason) => {
               if (!isEndingRef.current) {
-                console.log('Socket disconnected');
+                console.log('❌ Socket disconnected:', reason);
                 setSocketReady(false);
               }
             });
 
+            socketRef.current.on('connect_error', (error: any) => {
+              console.error('🔴 Socket connection error:', error);
+              setSocketReady(false);
+            });
+
             socketRef.current.on('error', (error: any) => {
-              console.error('Socket error:', error);
+              console.error('🔴 Socket error:', error);
+            });
+
+            // Add reconnection handling
+            socketRef.current.on('reconnect', (attemptNumber) => {
+              console.log('🔄 Socket reconnected after', attemptNumber, 'attempts');
+              setSocketReady(true);
+            });
+
+            socketRef.current.on('reconnect_attempt', (attemptNumber) => {
+              console.log('🔄 Socket reconnection attempt:', attemptNumber);
+            });
+
+            socketRef.current.on('reconnect_failed', () => {
+              console.error('❌ Socket reconnection failed');
+              setSocketReady(false);
             });
           }
         }
       } catch (error) {
-        console.error('Socket initialization error:', error);
+        console.error('❌ Socket initialization error:', error);
+        setSocketReady(false);
       }
     };
 
     setupSocket();
 
     return () => {
-      console.log('Cleaning up socket connection...');
+      console.log('🧹 Cleaning up socket connection...');
       // Don't disconnect socket here as it might be reused
       // Only disconnect when component is truly unmounting
     };
@@ -989,6 +1016,9 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   return (
     <div className="relative h-full w-full">
+      {/* Connection Status */}
+      <ConnectionStatus isConnected={socketReady} isConnecting={isConnecting} />
+
       {/* Professional Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-100 via-gray-50 to-white dark:from-gray-900 dark:via-gray-800 dark:to-black rounded-2xl overflow-hidden">
         {/* Subtle Grid Pattern */}
