@@ -34,12 +34,19 @@ export default function ParticipantVideo({
   const [hasVideoTrack, setHasVideoTrack] = useState(true);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      // Check if stream has video tracks
-      setHasVideoTrack(stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled);
+    if (videoRef.current) {
+      if (stream) {
+        videoRef.current.srcObject = stream;
+        // Check if stream has video tracks
+        setHasVideoTrack(stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled);
+      } else {
+        // Clear the video element when stream is removed
+        videoRef.current.srcObject = null;
+        setHasVideoTrack(false);
+        console.log('🔴 Cleared video srcObject for participant:', participantId);
+      }
     }
-  }, [stream]);
+  }, [stream, participantId]);
 
   // Monitor video track changes
   useEffect(() => {
@@ -60,6 +67,16 @@ export default function ParticipantVideo({
       });
     };
   }, [stream]);
+
+  // Cleanup video element on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        console.log('🔴 Component unmount: Cleared video srcObject for participant:', participantId);
+      }
+    };
+  }, [participantId]);
 
   const showProfileImage = isVideoOff || !hasVideoTrack;
 

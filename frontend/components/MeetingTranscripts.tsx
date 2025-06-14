@@ -137,8 +137,7 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
             AI-Powered Meeting Intelligence
           </DialogTitle>
           <DialogDescription>
-            Integrated AI-driven transcription, automating meeting summaries and task extraction
-            • Improved team productivity by 25% through auto-generated action items
+            AI-powered analysis of your meeting content with automated summaries and action item extraction
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[400px] rounded-md border p-4">

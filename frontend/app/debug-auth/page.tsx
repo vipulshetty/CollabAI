@@ -32,11 +32,11 @@ export default function DebugAuthPage() {
         )}
 
         <div className="space-x-4">
-          <button 
-            onClick={() => router.push('/protected/dashboard')}
+          <button
+            onClick={() => router.push('/dashboard')}
             className="bg-blue-500 text-white px-4 py-2 rounded"
           >
-            Go to Protected Dashboard
+            Go to Dashboard
           </button>
           
           <button 

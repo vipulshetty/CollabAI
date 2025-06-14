@@ -214,8 +214,7 @@ export function MeetingCard({ meeting, onJoin }: MeetingCardProps) {
               AI-Powered Meeting Intelligence
             </DialogTitle>
             <DialogDescription>
-              Integrated AI-driven transcription, automating meeting summaries and task extraction
-              • Improved team productivity by 25% through auto-generated action items
+              AI-powered analysis of your meeting content with automated summaries and action item extraction
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 max-h-[70vh] overflow-y-auto">
@@ -238,8 +237,8 @@ export function MeetingCard({ meeting, onJoin }: MeetingCardProps) {
                       AI-Generated Meeting Intelligence
                     </h2>
                     <p className="text-sm opacity-90">
-                      ✨ Integrated AI-driven transcription, automating meeting summaries and task extraction<br/>
-                      📈 Improved team productivity by 25% through auto-generated action items
+                      ✨ AI-powered meeting analysis with automated transcription and intelligent insights<br/>
+                      📈 Streamlined productivity through automated documentation and action tracking
                     </p>
                   </div>
 

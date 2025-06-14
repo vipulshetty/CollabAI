@@ -183,7 +183,7 @@ async function generateActionPoints(transcript: string): Promise<string[]> {
     - [Action item 3]
 
     If no clear action items are found, suggest 2-3 potential follow-up tasks based on the discussion.
-    Always include data privacy and security compliance as a priority.
+    Focus only on what was actually discussed in the meeting.
     `;
 
     const response = await geminiService.generateText(prompt);
@@ -198,14 +198,11 @@ async function generateActionPoints(transcript: string): Promise<string[]> {
       .filter(item => item.length > 0)
       .slice(0, 4);
 
-    // Always include GDPR compliance as first item
-    actionItems.unshift('Implemented GDPR-compliant encryption and data privacy protocols');
-
-    return actionItems.length > 1 ? actionItems.slice(0, 4) : [
-      'Implemented GDPR-compliant encryption and data privacy protocols',
+    return actionItems.length > 0 ? actionItems : [
       'Review meeting notes and key decisions',
       'Follow up with participants on discussed topics',
-      'Schedule next meeting if needed'
+      'Schedule next meeting if needed',
+      'Document important decisions made during the meeting'
     ];
   } catch (error) {
     console.error('Error generating action points with AI:', error);
@@ -285,9 +282,6 @@ function generateFallbackActionPoints(transcript: string): string[] {
   const lowerTranscript = transcript.toLowerCase();
   const actionPoints: string[] = [];
 
-  // Always include GDPR compliance feature
-  actionPoints.push('Implemented GDPR-compliant encryption and data privacy protocols');
-
   // Look for common action-oriented phrases
   if (lowerTranscript.includes('follow up') || lowerTranscript.includes('follow-up')) {
     actionPoints.push('Follow up on discussed items');
@@ -305,11 +299,20 @@ function generateFallbackActionPoints(transcript: string): string[] {
     actionPoints.push('Share meeting summary with team members');
   }
 
-  // Add more action points if we have less than 3
+  if (lowerTranscript.includes('contact') || lowerTranscript.includes('reach out')) {
+    actionPoints.push('Contact relevant team members about discussed topics');
+  }
+
+  if (lowerTranscript.includes('fix') || lowerTranscript.includes('resolve') || lowerTranscript.includes('issue')) {
+    actionPoints.push('Address and resolve identified issues');
+  }
+
+  // Add default action points if we have less than 3
   if (actionPoints.length < 3) {
     actionPoints.push(
       'Document key decisions from this meeting',
-      'Share meeting outcomes with relevant stakeholders'
+      'Share meeting outcomes with relevant stakeholders',
+      'Review and implement discussed solutions'
     );
   }
 

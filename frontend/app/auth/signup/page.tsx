@@ -25,7 +25,7 @@ export default function SignUpPage() {
   // Redirect if already signed in
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/protected/dashboard')
+      router.push('/dashboard')
     }
   }, [user, authLoading, router])
 

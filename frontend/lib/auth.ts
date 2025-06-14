@@ -29,15 +29,25 @@ export async function signInWithGoogle(redirectTo?: string) {
   let currentUrl;
   if (typeof window !== 'undefined') {
     currentUrl = window.location.origin;
+    console.log('Google OAuth: Client-side origin:', currentUrl);
   } else {
-    // Server-side fallback - use environment variables
-    currentUrl = process.env.NEXT_PUBLIC_APP_URL ||
-                 process.env.NEXTAUTH_URL ||
-                 process.env.FRONTEND_URL ||
-                 'http://localhost:3000';
+    // Server-side fallback - prioritize localhost for development
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+                         !process.env.VERCEL_URL;
+
+    if (isDevelopment) {
+      currentUrl = 'http://localhost:3000';
+      console.log('Google OAuth: Using development URL (server-side):', currentUrl);
+    } else {
+      currentUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                   process.env.NEXTAUTH_URL ||
+                   process.env.FRONTEND_URL ||
+                   'https://collabai-frontend.vercel.app';
+      console.log('Google OAuth: Using production URL (server-side):', currentUrl);
+    }
   }
 
-  console.log('Google OAuth: Using base URL:', currentUrl);
+  console.log('Google OAuth: Final base URL:', currentUrl);
 
   // Build the callback URL with the redirect parameter if provided
   let callbackUrl = `${currentUrl}/auth/callback`

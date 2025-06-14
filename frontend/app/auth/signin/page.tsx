@@ -22,7 +22,7 @@ function SignInContent() {
   const [googleLoading, setGoogleLoading] = useState(false)
 
   // Get redirect URL from query params
-  const redirectTo = searchParams.get('next') || '/protected/dashboard'
+  const redirectTo = searchParams.get('next') || '/dashboard'
 
   // Redirect if already signed in
   useEffect(() => {

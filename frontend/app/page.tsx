@@ -66,7 +66,7 @@ export default function HomePage() {
 
   const handleGetStarted = () => {
     if (user) {
-      router.push('/protected/dashboard');
+      router.push('/dashboard');
     } else {
       router.push('/auth/signup');
     }
@@ -130,7 +130,7 @@ export default function HomePage() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => router.push('/protected/dashboard')}
+                  onClick={() => router.push('/dashboard')}
                   className="relative group"
                 >
                   {/* Animated RGB border */}

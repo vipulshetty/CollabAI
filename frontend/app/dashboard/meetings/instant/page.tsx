@@ -9,7 +9,7 @@ export default function InstantMeetingPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back button */}
         <div className="mb-6">
-          <Link href="/protected/dashboard">
+          <Link href="/dashboard">
             <Button variant="ghost" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               <ArrowLeft className="w-4 h-4" />
               Back to Dashboard

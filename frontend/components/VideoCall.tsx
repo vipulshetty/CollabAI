@@ -158,38 +158,47 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   const handleUserLeft = useCallback((userId: string) => {
     console.log('🔴 User left:', userId);
 
-    // Clean up peer connection using functional update to avoid stale closure
-    setPeerConnections(prev => {
-      const connection = prev[userId];
-      if (connection) {
-        console.log('🔴 Closing peer connection for:', userId);
-        connection.close();
+    // Clean up peer connection
+    if (peerConnections[userId]) {
+      console.log('🔴 Closing peer connection for:', userId);
+      peerConnections[userId].close();
+      setPeerConnections(prev => {
         const newConnections = { ...prev };
         delete newConnections[userId];
         return newConnections;
-      }
-      return prev;
-    });
+      });
+    }
 
     // Clean up remote stream
     setRemoteStreams(prev => {
-      console.log('🔴 Removing remote stream for:', userId);
-      const newStreams = { ...prev };
-      if (newStreams[userId]) {
+      const stream = prev[userId];
+      if (stream) {
+        console.log('🔴 Stopping remote stream tracks for:', userId);
         // Stop all tracks in the remote stream
-        newStreams[userId].getTracks().forEach(track => {
+        stream.getTracks().forEach(track => {
           track.stop();
+          console.log('🔴 Stopped track:', track.kind, 'for user:', userId);
         });
-        delete newStreams[userId];
       }
+      const newStreams = { ...prev };
+      delete newStreams[userId];
+      console.log('🔴 Removed remote stream for:', userId);
       return newStreams;
     });
 
-    setParticipants(prev => {
-      console.log('🔴 Removing participant:', userId);
-      return prev.filter(id => id !== userId);
+    // Clean up pending candidates
+    setPendingCandidates(prev => {
+      const newPending = { ...prev };
+      delete newPending[userId];
+      return newPending;
     });
-  }, []);
+
+    setParticipants(prev => {
+      const newParticipants = prev.filter(id => id !== userId);
+      console.log('🔴 Updated participants list. Removed:', userId, 'Remaining:', newParticipants);
+      return newParticipants;
+    });
+  }, [peerConnections]);
 
   const handleOffer = useCallback(async ({ from, offer }: { from: string; offer: RTCSessionDescriptionInit }) => {
     console.log('🟢 Received offer from:', from);
@@ -308,35 +317,10 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
-
-    // Add beforeunload event listener to clean up when page is refreshed/closed
-    const handleBeforeUnload = () => {
-      console.log('🔴 Page unloading, cleaning up...');
-
-      // Stop all media tracks
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-
-      // Close all peer connections
-      Object.values(peerConnections).forEach(pc => pc.close());
-
-      // Notify server that user is leaving
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('user-leaving', { roomId: peerId });
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       recordingServiceRef.current = null;
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-
-      // Clean up everything when component unmounts
-      handleBeforeUnload();
     };
-  }, [localStream, peerConnections, peerId]);
+  }, []);
 
   useEffect(() => {
     const initializeMedia = async () => {
@@ -488,17 +472,27 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   }, [socketReady, showChat]);
 
   useEffect(() => {
-    if (socketReady) {
+    if (socketReady && !transcriptionService) {
       const socket = socketRef.current;
       console.log('🔵 FRONTEND: Socket is ready, setting up transcription service');
 
-      // Temporarily disable auto-start transcription to focus on WebRTC
-      // const service = new TranscriptionService(socket!, peerId);
-      // setTranscriptionService(service);
+      // Initialize transcription service only if we don't have one
+      console.log('🎤 Initializing transcription service for room:', peerId);
+      const service = new TranscriptionService(socket!, peerId);
+      setTranscriptionService(service);
 
-      // // Start transcription automatically
-      // service.start();
-      // setIsTranscribing(true);
+      // Start transcription automatically
+      console.log('🎤 Starting transcription service');
+      service.start().then(startResult => {
+        if (startResult.success) {
+          setIsTranscribing(true);
+          console.log('🎤 Transcription started successfully');
+        } else {
+          console.error('🎤 Failed to start transcription:', startResult.error || 'Unknown error');
+        }
+      }).catch(error => {
+        console.error('🎤 Error starting transcription service:', error);
+      });
 
       // Listen for transcription updates
       socket?.on('transcription', (data) => {
@@ -512,12 +506,15 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       });
 
       return () => {
-        // service.stop();
+        console.log('🎤 Cleaning up transcription service');
+        if (service) {
+          service.stop();
+        }
         socket?.off('transcription');
         socket?.off('transcription-error');
       };
     }
-  }, [socketReady, peerId]);
+  }, [socketReady, peerId, transcriptionService]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -525,7 +522,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
     socket.on('user-joined', handleUserJoined);
     socket.on('user-left', handleUserLeft);
-    socket.on('user-disconnected', handleUserLeft); // Handle unexpected disconnections
     socket.on('offer', handleOffer);
     socket.on('answer', handleAnswer);
     socket.on('ice-candidate', handleIceCandidate);
@@ -533,7 +529,6 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     return () => {
       socket.off('user-joined', handleUserJoined);
       socket.off('user-left', handleUserLeft);
-      socket.off('user-disconnected', handleUserLeft);
       socket.off('offer', handleOffer);
       socket.off('answer', handleAnswer);
       socket.off('ice-candidate', handleIceCandidate);
@@ -675,15 +670,23 @@ export default function VideoCall({ peerId }: VideoCallProps) {
     isEndingRef.current = false;
   };
 
-  const handleToggleTranscription = () => {
+  const handleToggleTranscription = async () => {
     if (transcriptionService) {
       if (isTranscribing) {
-        transcriptionService.stop();
+        console.log('🎤 Stopping transcription');
+        await transcriptionService.stop();
         setIsTranscribing(false);
       } else {
-        transcriptionService.start();
-        setIsTranscribing(true);
+        console.log('🎤 Starting transcription');
+        const result = await transcriptionService.start();
+        if (result.success) {
+          setIsTranscribing(true);
+        } else {
+          console.error('🎤 Failed to start transcription:', result.error);
+        }
       }
+    } else {
+      console.warn('🎤 Transcription service not available');
     }
   };
 
@@ -890,37 +893,21 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   return (
     <div className="relative h-full w-full">
-      {/* Beautiful gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 rounded-2xl overflow-hidden">
-        {/* Animated background particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -inset-10 opacity-30">
-            <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
-            <div className="absolute top-3/4 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-1000"></div>
-            <div className="absolute bottom-1/4 left-1/2 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-2000"></div>
-          </div>
-        </div>
-
-        {/* Glassmorphism overlay */}
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm"></div>
-
-        <motion.div
+      <div className="absolute inset-0 bg-[#1a1b1e] rounded-2xl overflow-hidden">
+        <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className={`relative z-10 p-6 ${getGridSize(participants.length + 1)}`}
+          className={`p-4 ${getGridSize(participants.length + 1)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-6 auto-rows-fr`}>
-            <motion.div
+          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-4 auto-rows-fr`}>
+            <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-md border border-white/10 shadow-2xl"
+              className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
             >
-              <div className={`relative w-full h-full rounded-2xl overflow-hidden ${isVideoOff ? 'bg-gradient-to-br from-slate-800 to-slate-900' : ''}`}>
-                {/* Glowing border effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-sm"></div>
-                <div className="absolute inset-[1px] bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl"></div>
+              <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
                 {isVideoOff ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-900/95">
                     <div className="text-center">
@@ -963,29 +950,32 @@ export default function VideoCall({ peerId }: VideoCallProps) {
               </div>
             </motion.div>
             
-            {participants.map((participantId, index) => {
-              const stream = remoteStreams[participantId];
-              console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0);
+            <AnimatePresence mode="popLayout">
+              {participants.map((participantId, index) => {
+                const stream = remoteStreams[participantId];
+                console.log('🔵 Rendering participant:', participantId, 'has stream:', !!stream, 'stream tracks:', stream?.getTracks().length || 0);
 
-              return (
-                <motion.div
-                  key={participantId}
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                  className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
-                >
-                  <ParticipantVideo
-                    participantId={participantId}
-                    layout="grid"
-                    stream={stream}
-                    isLocal={false}
-                    isVideoOff={!stream}
-                    profileImage={undefined}
-                  />
-                </motion.div>
-              );
-            })}
+                return (
+                  <motion.div
+                    key={participantId}
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
+                    className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+                  >
+                    <ParticipantVideo
+                      participantId={participantId}
+                      layout="grid"
+                      stream={stream}
+                      isLocal={false}
+                      isVideoOff={!stream}
+                      profileImage={undefined}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         </motion.div>
 

@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
   // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get('next') ?? '/protected/dashboard'
+  const next = searchParams.get('next') ?? '/dashboard'
 
   console.log('Auth callback called with:', {
     code: !!code,

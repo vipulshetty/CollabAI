@@ -56,7 +56,7 @@ export const authOptions: AuthOptions = {
       }
 
       // Default to dashboard
-      return `${baseUrl}/protected/dashboard`;
+      return `${baseUrl}/dashboard`;
     },
     async session({ session, token }) {
       console.log('Session callback:', { session, token });

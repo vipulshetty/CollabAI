@@ -83,7 +83,6 @@ export async function middleware(request: NextRequest) {
   // If user is not authenticated and trying to access protected routes
   if (!user && (
     request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/protected') ||
     request.nextUrl.pathname.startsWith('/profile') ||
     request.nextUrl.pathname.startsWith('/meetings') ||
     request.nextUrl.pathname.startsWith('/room')
@@ -101,7 +100,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/dashboard/:path*',
-    '/protected/:path*',
     '/profile/:path*',
     '/meetings/:path*',
     '/room/:path*'
