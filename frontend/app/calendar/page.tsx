@@ -53,62 +53,63 @@ function CalendarContent() {
   return (
     <>
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Calendar Section */}
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Meeting Calendar</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Meeting Calendar</h1>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => router.push('/dashboard/meetings/schedule')}
-              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300"
             >
               <Plus className="w-4 h-4" />
               Schedule Meeting
             </motion.button>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 p-6">
             {/* Calendar Header with Navigation */}
             <div className="flex items-center justify-between mb-6">
               <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 group"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
               </motion.button>
 
               <div className="flex items-center gap-4">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </h2>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={goToToday}
-                  className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/70"
+                  className="px-4 py-2 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all duration-300"
                 >
                   Today
                 </motion.button>
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => navigateMonth('next')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 group"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
               </motion.button>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 text-center mb-4">
+            <div className="grid grid-cols-7 gap-1 text-center mb-4">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="font-semibold p-2 text-gray-700 dark:text-gray-300">
+                <div key={day} className="font-semibold p-3 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   {day}
                 </div>
               ))}
@@ -130,28 +131,33 @@ function CalendarContent() {
                 });
 
                 return (
-                  <div
+                  <motion.div
                     key={i}
-                    className={`min-h-[80px] border p-2 relative ${
-                      isCurrentMonth ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'
-                    } ${isToday ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''}`}
+                    whileHover={{ scale: 1.02 }}
+                    className={`min-h-[80px] border border-gray-200 dark:border-gray-600 p-2 relative rounded-lg transition-all duration-200 ${
+                      isCurrentMonth
+                        ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    } ${isToday ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 shadow-md' : ''}`}
                   >
-                    <span className={`text-sm ${
+                    <span className={`text-sm font-medium ${
                       isCurrentMonth ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-600'
                     } ${isToday ? 'font-bold text-blue-600 dark:text-blue-400' : ''}`}>
                       {cellDate.getDate()}
                     </span>
                     {dayMeetings.map((meeting) => {
                       const meetingColor = meeting.status === 'completed'
-                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
                         : meeting.status === 'scheduled'
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200'
-                        : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200';
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white';
 
                       return (
-                        <div
+                        <motion.div
                           key={meeting.id}
-                          className={`mt-1 p-1 text-xs rounded cursor-pointer hover:opacity-80 ${meetingColor}`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`mt-1 p-1.5 text-xs rounded-md cursor-pointer shadow-sm hover:shadow-md transition-all duration-200 ${meetingColor}`}
                           onClick={() => {
                             if (meeting.status === 'completed') {
                               router.push(`/dashboard`); // Go to dashboard to see summary
@@ -162,10 +168,10 @@ function CalendarContent() {
                           title={`${meeting.title} - ${meeting.status}`}
                         >
                           {meeting.title.length > 12 ? meeting.title.substring(0, 12) + '...' : meeting.title}
-                        </div>
+                        </motion.div>
                       );
                     })}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -174,21 +180,22 @@ function CalendarContent() {
 
         {/* Upcoming Meetings Section */}
         <div className="space-y-6">
-          <h2 className="text-xl font-bold">Upcoming Meetings</h2>
-          <div className="bg-white rounded-lg shadow-lg p-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Upcoming Meetings</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 p-6">
             {upcomingMeetings.length > 0 ? (
               <div className="space-y-4">
                 {upcomingMeetings.map((meeting) => (
                   <motion.div
                     key={meeting.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="border-b last:border-b-0 pb-4 last:pb-0"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.02 }}
+                    className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 pb-4 last:pb-0 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200"
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-medium">{meeting.title}</h3>
-                        <div className="flex items-center text-sm text-gray-500 mt-1">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{meeting.title}</h3>
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
                           <Clock className="w-4 h-4 mr-1" />
                           {new Date(meeting.scheduled_date).toLocaleString()}
                         </div>
@@ -197,7 +204,7 @@ function CalendarContent() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => router.push(`/meetings/join/${meeting.id}`)}
-                        className="flex items-center gap-2 bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 text-sm"
+                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl hover:from-blue-700 hover:to-indigo-700 text-sm shadow-md hover:shadow-lg transition-all duration-300"
                       >
                         <Video className="w-4 h-4" />
                         Join
@@ -207,14 +214,15 @@ function CalendarContent() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
                 No upcoming meetings scheduled
               </p>
             )}
           </div>
         </div>
+          </div>
+        </div>
       </div>
-    </div>
     </>
   );
 }

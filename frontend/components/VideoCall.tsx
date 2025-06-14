@@ -11,30 +11,40 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TranscriptionService } from '@/services/TranscriptionService';
 import RecordingService from '@/services/RecordingService';
 import Whiteboard from './Whiteboard';
-import Video from './icons/Video';
-import VideoOff from './icons/VideoOff';
-import Mic from './icons/Mic';
-import MicOff from './icons/MicOff';
 import Image from 'next/image';
 
 interface VideoCallProps {
   peerId: string;
 }
 
-const getGridLayout = (totalParticipants: number): string => {
+const getGridLayout = (totalParticipants: number, showChat: boolean): string => {
   if (totalParticipants <= 1) return 'grid-cols-1';
-  if (totalParticipants === 2) return 'grid-cols-2';
-  if (totalParticipants <= 4) return 'grid-cols-2';
-  if (totalParticipants <= 6) return 'grid-cols-3';
-  if (totalParticipants <= 9) return 'grid-cols-3';
-  return 'grid-cols-4';
+  if (totalParticipants === 2) return showChat ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 lg:grid-cols-2';
+  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-2';
+  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-3';
+  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-3';
+  return showChat ? 'grid-cols-3 xl:grid-cols-4' : 'grid-cols-4';
 };
 
-const getGridSize = (totalParticipants: number): string => {
-  if (totalParticipants <= 1) return 'h-full max-w-3xl mx-auto';
-  if (totalParticipants === 2) return 'h-full max-w-4xl mx-auto';
-  if (totalParticipants <= 4) return 'h-full max-w-5xl mx-auto';
-  return 'h-full w-full';
+const getGridSize = (totalParticipants: number, showChat: boolean): string => {
+  // Use margin instead of padding for better layout control
+  if (showChat) {
+    if (totalParticipants <= 1) {
+      return 'h-full max-w-4xl mx-auto mr-80 xl:mr-96 transition-all duration-300';
+    }
+    return 'h-full w-full mr-80 xl:mr-96 transition-all duration-300';
+  }
+
+  if (totalParticipants <= 1) {
+    return 'h-full max-w-4xl mx-auto transition-all duration-300';
+  }
+  return 'h-full w-full transition-all duration-300';
+};
+
+const getVideoAspect = (totalParticipants: number): string => {
+  if (totalParticipants <= 1) return 'aspect-video';
+  if (totalParticipants <= 4) return 'aspect-video';
+  return 'aspect-square';
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
@@ -893,19 +903,49 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute inset-0 bg-[#1a1b1e] rounded-2xl overflow-hidden">
-        <motion.div 
+      {/* Professional Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-100 via-gray-50 to-white dark:from-gray-900 dark:via-gray-800 dark:to-black rounded-2xl overflow-hidden">
+        {/* Subtle Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:50px_50px] opacity-20 dark:opacity-30" />
+
+        {/* Ambient Lighting Effects */}
+        <motion.div
+          className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        <motion.div
+          className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.3, 1],
+            opacity: [0.2, 0.4, 0.2],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 2
+          }}
+        />
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className={`p-4 ${getGridSize(participants.length + 1)}`}
+          className={`p-6 pb-24 transition-all duration-300 ${getGridSize(participants.length + 1, showChat)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1)} gap-4 auto-rows-fr`}>
-            <motion.div 
+          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-6 auto-rows-fr`}>
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+              className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
             >
               <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
                 {isVideoOff ? (
@@ -962,7 +1002,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                    className="relative aspect-video rounded-xl overflow-hidden bg-black/30"
+                    className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
                   >
                     <ParticipantVideo
                       participantId={participantId}
@@ -982,21 +1022,24 @@ export default function VideoCall({ peerId }: VideoCallProps) {
         <AnimatePresence>
           {showChat && (
             <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 20 }}
-              className="fixed right-4 top-4 bottom-32 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden"
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed right-6 top-6 bottom-28 w-80 xl:w-96 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-300/50 dark:border-gray-700/50 rounded-2xl shadow-2xl overflow-hidden z-40"
             >
-              <ChatSystem
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                transcripts={transcripts}
-                transcriptText={transcriptText}
-                summary={summary}
-                isSummarizing={isSummarizing}
-                onRequestSummary={generateSummary}
-              />
+              <div className="absolute inset-0 bg-gradient-to-b from-gray-50/50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/50 rounded-2xl" />
+              <div className="relative z-10 h-full">
+                <ChatSystem
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  transcripts={transcripts}
+                  transcriptText={transcriptText}
+                  summary={summary}
+                  isSummarizing={isSummarizing}
+                  onRequestSummary={generateSummary}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1032,11 +1075,12 @@ export default function VideoCall({ peerId }: VideoCallProps) {
           )}
         </AnimatePresence>
 
-        <motion.div 
+        {/* Enhanced Controls Bar */}
+        <motion.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 via-black/50 to-transparent backdrop-blur-sm"
+          className="absolute bottom-4 left-4 right-4 z-30"
         >
           <VideoControls
             localStream={localStream}
@@ -1051,6 +1095,8 @@ export default function VideoCall({ peerId }: VideoCallProps) {
             isRecording={isRecording}
             onToggleWhiteboard={handleToggleWhiteboard}
             showWhiteboard={showWhiteboard}
+            onToggleChat={() => setShowChat(!showChat)}
+            showChat={showChat}
           />
         </motion.div>
 

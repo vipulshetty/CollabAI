@@ -129,8 +129,17 @@ export default function ParticipantVideo({
           className={`w-full h-full ${layout === 'spotlight' ? 'object-cover' : 'object-contain'}`}
         />
       )}
-      <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg text-white text-sm font-medium">
+      <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-xl px-4 py-2 rounded-xl text-white text-sm font-medium border border-white/10 shadow-lg">
         {isLocal ? 'You' : `Participant ${participantId}`}
+      </div>
+
+      {/* Connection Status Indicator */}
+      <div className="absolute top-4 right-4">
+        <motion.div
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="w-3 h-3 bg-green-500 rounded-full shadow-lg shadow-green-500/50"
+        />
       </div>
     </motion.div>
   );

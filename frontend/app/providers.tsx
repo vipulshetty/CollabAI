@@ -3,7 +3,6 @@
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MeetingProvider } from "@/contexts/MeetingContext";
 import { RecordingProvider } from "@/contexts/RecordingContext";
-import AuthStatus from "@/components/AuthStatus";
 
 export function Providers({
   children
@@ -14,7 +13,6 @@ export function Providers({
     <AuthProvider>
       <MeetingProvider>
         <RecordingProvider>
-          <AuthStatus />
           {children}
         </RecordingProvider>
       </MeetingProvider>

@@ -59,49 +59,62 @@ export default function Calendar({ onEventClick }: CalendarProps) {
   if (loading) return <div>Loading calendar...</div>;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="bg-white p-6 rounded-lg shadow-lg"
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50"
     >
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1">
         {/* Calendar header */}
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="text-center font-semibold p-2">
+          <div key={day} className="text-center font-semibold p-3 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg mb-2">
             {day}
           </div>
         ))}
-        
+
         {/* Calendar days */}
         {Array.from({ length: 35 }, (_, i) => {
           const date = new Date();
           date.setDate(date.getDate() - date.getDay() + i);
-          
-          const dayEvents = events.filter(event => 
-            format(new Date(event.startTime), 'yyyy-MM-dd') === 
+
+          const dayEvents = events.filter(event =>
+            format(new Date(event.startTime), 'yyyy-MM-dd') ===
             format(date, 'yyyy-MM-dd')
           );
 
+          const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+
           return (
-            <div 
+            <motion.div
               key={i}
-              className="min-h-[100px] border p-2 relative"
+              whileHover={{ scale: 1.02 }}
+              className={`min-h-[100px] border border-gray-200 dark:border-gray-600 p-2 relative rounded-lg transition-all duration-200 ${
+                isToday
+                  ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600'
+                  : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              }`}
             >
-              <span className="text-sm text-gray-600">
+              <span className={`text-sm font-medium ${
+                isToday
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-400'
+              }`}>
                 {format(date, 'd')}
               </span>
-              
+
               {dayEvents.map((event, idx) => (
                 <motion.div
                   key={event.id}
-                  whileHover={{ scale: 1.02 }}
-                  className="mt-1 p-1 text-xs bg-blue-100 rounded cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="mt-1 p-1.5 text-xs bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-md cursor-pointer shadow-sm hover:shadow-md transition-all duration-200"
                   onClick={() => handleEventClick(event)}
                 >
                   {event.title}
                 </motion.div>
               ))}
-            </div>
+            </motion.div>
           );
         })}
       </div>
