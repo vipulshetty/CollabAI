@@ -27,7 +27,9 @@ function SignInContent() {
   // Redirect if already signed in
   useEffect(() => {
     if (!authLoading && user) {
-      router.push(redirectTo)
+      console.log('SignIn: User authenticated, redirecting to:', redirectTo)
+      // Use replace instead of push to avoid back button issues
+      router.replace(redirectTo)
     }
   }, [user, authLoading, router, redirectTo])
 
@@ -62,10 +64,11 @@ function SignInContent() {
         toast.error(error.message)
       } else {
         toast.success('Signed in successfully!')
+        console.log('Email sign-in successful, redirecting to:', redirectTo)
         // Add a small delay to ensure auth state updates
         setTimeout(() => {
           router.push(redirectTo)
-        }, 100)
+        }, 500)
       }
     } catch (error) {
       console.error('Sign-in error:', error)

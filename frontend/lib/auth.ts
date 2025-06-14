@@ -26,13 +26,27 @@ export async function signInWithGoogle(redirectTo?: string) {
   const supabase = createClient()
 
   // Get the current URL to determine the correct redirect URL
-  const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+  let currentUrl;
+  if (typeof window !== 'undefined') {
+    currentUrl = window.location.origin;
+  } else {
+    // Server-side fallback - use environment variables
+    currentUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                 process.env.NEXTAUTH_URL ||
+                 process.env.FRONTEND_URL ||
+                 'http://localhost:3000';
+  }
+
+  console.log('Google OAuth: Using base URL:', currentUrl);
 
   // Build the callback URL with the redirect parameter if provided
   let callbackUrl = `${currentUrl}/auth/callback`
   if (redirectTo) {
     callbackUrl += `?next=${encodeURIComponent(redirectTo)}`
+    console.log('Google OAuth: Redirect URL preserved:', redirectTo);
   }
+
+  console.log('Google OAuth: Full callback URL:', callbackUrl);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',

@@ -53,10 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           event,
           hasSession: !!session,
           hasUser: !!session?.user,
-          email: session?.user?.email
+          email: session?.user?.email,
+          timestamp: new Date().toISOString()
         })
         setUser(session?.user ?? null)
         setLoading(false)
+
+        // If user just signed in, trigger a small delay to ensure all components update
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('AuthContext: User signed in, triggering state update')
+        }
       }
     )
 

@@ -45,15 +45,24 @@ export async function POST() {
     // Update the meeting with the proper URL
     // Determine the correct base URL based on environment
     let baseUrl;
-    if (process.env.NODE_ENV === 'development') {
+
+    // Check if we're in development (multiple ways to detect)
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+                         process.env.VERCEL_ENV === 'development' ||
+                         !process.env.VERCEL_URL;
+
+    if (isDevelopment) {
       // In development, use localhost
       baseUrl = 'http://localhost:3000';
+      console.log('Using development URL:', baseUrl);
     } else {
-      // In production, use environment variables or fallback
+      // In production, prioritize environment variables
       baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                process.env.NEXTAUTH_URL ||
                 (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
                 process.env.FRONTEND_URL ||
                 'https://collabai-frontend.vercel.app';
+      console.log('Using production URL:', baseUrl);
     }
     const meetingUrl = `${baseUrl}/meetings/${meeting.id}/video-call`;
 
