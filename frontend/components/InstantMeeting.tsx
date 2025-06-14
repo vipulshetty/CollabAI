@@ -35,7 +35,8 @@ export function InstantMeeting() {
       const data = await response.json();
       console.log('Meeting created:', data);
 
-      const link = data.redirectUrl || `${window.location.origin}/meetings/${data.meetingId}/video-call`;
+      // Use the meeting URL from the response, or construct it from the current origin
+      const link = data.meeting?.meeting_url || data.redirectUrl || `${window.location.origin}/meetings/${data.meetingId}/video-call`;
       setMeetingLink(link);
     } catch (error) {
       console.error('Failed to create instant meeting:', error);

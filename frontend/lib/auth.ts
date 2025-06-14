@@ -22,13 +22,22 @@ export async function signUpWithEmail(email: string, password: string) {
   return { data, error }
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(redirectTo?: string) {
   const supabase = createClient()
+
+  // Get the current URL to determine the correct redirect URL
+  const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+
+  // Build the callback URL with the redirect parameter if provided
+  let callbackUrl = `${currentUrl}/auth/callback`
+  if (redirectTo) {
+    callbackUrl += `?next=${encodeURIComponent(redirectTo)}`
+  }
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `http://localhost:3000/auth/callback`
+      redirectTo: callbackUrl
     }
   })
 

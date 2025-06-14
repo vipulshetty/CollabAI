@@ -78,7 +78,7 @@ function SignInContent() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true)
     try {
-      const { error } = await signInWithGoogle()
+      const { error } = await signInWithGoogle(redirectTo)
       if (error) {
         toast.error(error.message)
       }

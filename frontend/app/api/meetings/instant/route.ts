@@ -43,10 +43,18 @@ export async function POST() {
     console.log('Meeting created successfully:', meeting);
 
     // Update the meeting with the proper URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
-                   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
-                   process.env.FRONTEND_URL ||
-                   'https://collabai-frontend.vercel.app';
+    // Determine the correct base URL based on environment
+    let baseUrl;
+    if (process.env.NODE_ENV === 'development') {
+      // In development, use localhost
+      baseUrl = 'http://localhost:3000';
+    } else {
+      // In production, use environment variables or fallback
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+                process.env.FRONTEND_URL ||
+                'https://collabai-frontend.vercel.app';
+    }
     const meetingUrl = `${baseUrl}/meetings/${meeting.id}/video-call`;
 
     const { data: updatedMeeting, error: updateError } = await supabase

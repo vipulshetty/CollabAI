@@ -84,10 +84,15 @@ export async function middleware(request: NextRequest) {
   if (!user && (
     request.nextUrl.pathname.startsWith('/dashboard') ||
     request.nextUrl.pathname.startsWith('/protected') ||
-    request.nextUrl.pathname.startsWith('/profile')
+    request.nextUrl.pathname.startsWith('/profile') ||
+    request.nextUrl.pathname.startsWith('/meetings') ||
+    request.nextUrl.pathname.startsWith('/room')
   )) {
     console.log('Redirecting to sign-in:', request.nextUrl.pathname)
-    return NextResponse.redirect(new URL('/auth/signin', request.url))
+    // Preserve the original URL as a redirect parameter
+    const redirectUrl = new URL('/auth/signin', request.url)
+    redirectUrl.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
   return response
@@ -97,6 +102,8 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/protected/:path*',
-    '/profile/:path*'
+    '/profile/:path*',
+    '/meetings/:path*',
+    '/room/:path*'
   ]
 };
