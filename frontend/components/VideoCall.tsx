@@ -18,13 +18,15 @@ interface VideoCallProps {
 }
 
 const getGridLayout = (totalParticipants: number, showChat: boolean): string => {
-  // Mobile-first responsive grid
+  // Optimized grid layout for better scaling
   if (totalParticipants <= 1) return 'grid-cols-1';
-  if (totalParticipants === 2) return showChat ? 'grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
-  if (totalParticipants <= 4) return showChat ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2';
-  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
-  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 lg:grid-cols-3';
-  return showChat ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+  if (totalParticipants === 2) return showChat ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2';
+  if (totalParticipants === 3) return showChat ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+  if (totalParticipants === 4) return showChat ? 'grid-cols-2 lg:grid-cols-2' : 'grid-cols-2';
+  if (totalParticipants <= 6) return showChat ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 md:grid-cols-3';
+  if (totalParticipants <= 9) return showChat ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-3';
+  if (totalParticipants <= 12) return showChat ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 md:grid-cols-4';
+  return showChat ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-4 md:grid-cols-5';
 };
 
 const getGridSize = (totalParticipants: number, showChat: boolean): string => {
@@ -44,8 +46,10 @@ const getGridSize = (totalParticipants: number, showChat: boolean): string => {
 
 const getVideoAspect = (totalParticipants: number): string => {
   if (totalParticipants <= 1) return 'aspect-video';
+  if (totalParticipants <= 2) return 'aspect-video';
   if (totalParticipants <= 4) return 'aspect-video';
-  return 'aspect-square';
+  if (totalParticipants <= 6) return 'aspect-video';
+  return 'aspect-square'; // For 7+ participants, use square aspect ratio
 };
 
 export default function VideoCall({ peerId }: VideoCallProps) {
@@ -561,6 +565,13 @@ export default function VideoCall({ peerId }: VideoCallProps) {
       const socket = socketRef.current;
       console.log('🔵 FRONTEND: Socket is ready, setting up transcription service');
 
+      // Store user info globally for transcription
+      (window as any).currentUserInfo = {
+        name: user?.user_metadata?.full_name || user?.email || 'Anonymous User',
+        email: user?.email || '',
+        avatar: user?.user_metadata?.avatar_url || ''
+      };
+
       // Initialize transcription service only if we don't have one
       console.log('🎤 Initializing transcription service for room:', peerId);
       const service = new TranscriptionService(socket!, peerId);
@@ -1015,12 +1026,12 @@ export default function VideoCall({ peerId }: VideoCallProps) {
           transition={{ duration: 0.5 }}
           className={`p-6 pb-24 transition-all duration-300 ${getGridSize(participants.length + 1, showChat)}`}
         >
-          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-6 auto-rows-fr`}>
+          <div className={`h-full grid ${getGridLayout(participants.length + 1, showChat)} gap-3 md:gap-4 lg:gap-6 auto-rows-fr place-items-center`}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
+              className={`relative ${getVideoAspect(participants.length + 1)} w-full max-w-sm md:max-w-md lg:max-w-lg rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50`}
             >
               <div className={`relative w-full h-full rounded-lg overflow-hidden ${isVideoOff ? 'bg-gray-900' : ''}`}>
                 {isVideoOff ? (
@@ -1087,7 +1098,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
-                    className={`relative ${getVideoAspect(participants.length + 1)} rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
+                    className={`relative ${getVideoAspect(participants.length + 1)} w-full max-w-sm md:max-w-md lg:max-w-lg rounded-2xl overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black shadow-2xl border border-gray-300 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300`}
                   >
                     <ParticipantVideo
                       participantId={participantId}
