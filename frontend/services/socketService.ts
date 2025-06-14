@@ -6,9 +6,18 @@ class SocketService {
   private maxReconnectAttempts = 5;
 
   initSocket() {
-    if (!this.socket) {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    if (!this.socket || this.socket.disconnected) {
+      // Use production URL consistently
+      const socketUrl = process.env.NODE_ENV === 'production'
+        ? 'https://collabai.onrender.com'
+        : 'http://localhost:3001';
+
       console.log('Connecting to socket server:', socketUrl);
+
+      // Disconnect existing socket if any
+      if (this.socket) {
+        this.socket.disconnect();
+      }
 
       // Production-ready socket configuration
       this.socket = io(socketUrl, {
@@ -18,14 +27,14 @@ class SocketService {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
-        withCredentials: true,
-        forceNew: true,
+        withCredentials: false, // Set to false for cross-origin
+        forceNew: false, // Don't force new connection every time
         // Additional production settings
         upgrade: true,
         rememberUpgrade: true,
         autoConnect: true
       });
-      
+
       this.setupEventListeners();
     }
     return this.socket;

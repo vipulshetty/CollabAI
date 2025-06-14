@@ -299,31 +299,46 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
   const handleIceCandidate = useCallback(({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
     console.log('🟠 Received ICE candidate from:', from);
+
+    // Always queue ICE candidates first, then process them
+    setPendingCandidates(prev => ({
+      ...prev,
+      [from]: [...(prev[from] || []), candidate]
+    }));
+
     const peerConnection = peerConnections[from];
     if (!peerConnection) {
-      console.error('🔴 No peer connection for ICE candidate from:', from);
+      console.log('🟠 No peer connection yet for ICE candidate from:', from, '- queued for later');
       return;
     }
 
     // Check if remote description is set before adding ICE candidate
     if (!peerConnection.remoteDescription) {
-      console.log('🟠 Remote description not set yet, queuing ICE candidate for:', from);
-      // Store the candidate to add later when remote description is set
-      setPendingCandidates(prev => ({
-        ...prev,
-        [from]: [...(prev[from] || []), candidate]
-      }));
+      console.log('🟠 Remote description not set yet, ICE candidate queued for:', from);
       return;
     }
 
-    try {
-      console.log('🟠 Adding ICE candidate for:', from);
-      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log('🟠 Successfully added ICE candidate for:', from);
-    } catch (error) {
-      console.error('🔴 Error handling ICE candidate from:', from, error);
+    // Process this candidate and any pending ones
+    const pendingForUser = pendingCandidates[from] || [];
+    if (pendingForUser.length > 0) {
+      console.log('🟠 Processing', pendingForUser.length, 'pending ICE candidates for:', from);
+      pendingForUser.forEach(async (pendingCandidate) => {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(pendingCandidate));
+          console.log('🟠 Successfully added pending ICE candidate for:', from);
+        } catch (error) {
+          console.error('🔴 Error adding pending ICE candidate for:', from, error);
+        }
+      });
+
+      // Clear pending candidates for this user
+      setPendingCandidates(prev => {
+        const newPending = { ...prev };
+        delete newPending[from];
+        return newPending;
+      });
     }
-  }, [peerConnections]);
+  }, [peerConnections, pendingCandidates]);
 
   useEffect(() => {
     recordingServiceRef.current = new RecordingService();
@@ -386,23 +401,27 @@ export default function VideoCall({ peerId }: VideoCallProps) {
   useEffect(() => {
     const setupSocket = () => {
       try {
-        socketRef.current = socketService.initSocket();
-        if (socketRef.current) {
-          socketRef.current.on('connect', () => {
-            console.log('Socket connected');
-            setSocketReady(true);
-          });
+        // Only create socket if we don't have one
+        if (!socketRef.current || socketRef.current.disconnected) {
+          socketRef.current = socketService.initSocket();
 
-          socketRef.current.on('disconnect', () => {
-            if (!isEndingRef.current) {  
-              console.log('Socket disconnected');
-              setSocketReady(false);
-            }
-          });
+          if (socketRef.current) {
+            socketRef.current.on('connect', () => {
+              console.log('Socket connected');
+              setSocketReady(true);
+            });
 
-          socketRef.current.on('error', (error: any) => {
-            console.error('Socket error:', error);
-          });
+            socketRef.current.on('disconnect', () => {
+              if (!isEndingRef.current) {
+                console.log('Socket disconnected');
+                setSocketReady(false);
+              }
+            });
+
+            socketRef.current.on('error', (error: any) => {
+              console.error('Socket error:', error);
+            });
+          }
         }
       } catch (error) {
         console.error('Socket initialization error:', error);
@@ -413,10 +432,8 @@ export default function VideoCall({ peerId }: VideoCallProps) {
 
     return () => {
       console.log('Cleaning up socket connection...');
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      // Don't disconnect socket here as it might be reused
+      // Only disconnect when component is truly unmounting
     };
   }, []);
 
@@ -524,7 +541,7 @@ export default function VideoCall({ peerId }: VideoCallProps) {
         socket?.off('transcription-error');
       };
     }
-  }, [socketReady, peerId, transcriptionService]);
+  }, [socketReady, peerId]);
 
   useEffect(() => {
     const socket = socketRef.current;

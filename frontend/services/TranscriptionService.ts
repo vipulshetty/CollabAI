@@ -233,16 +233,32 @@ export class TranscriptionService {
     }
 
     if (this.retryCount < this.maxRetries) {
-      console.log(`🎤 [${this.instanceId}] Attempting to reconnect (${this.retryCount + 1}/${this.maxRetries})`);
+      this.retryCount++;
+      console.log(`🎤 [${this.instanceId}] Attempting to reconnect (${this.retryCount}/${this.maxRetries})`);
 
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
       }
 
+      const delay = this.retryDelay * this.retryCount;
       this.reconnectTimeout = setTimeout(() => {
-        this.retryCount++;
-        this.restart();
-      }, this.retryDelay * this.retryCount);
+        if (this.isTranscribing && (window as any).currentTranscriptionService === this) {
+          try {
+            console.log(`🎤 [${this.instanceId}] Restarting speech recognition after ${delay}ms delay`);
+            if (!(window as any).speechRecognitionActive && this.recognition) {
+              (window as any).speechRecognitionActive = true;
+              this.recognition.start();
+            }
+          } catch (error) {
+            console.error(`🎤 [${this.instanceId}] Error restarting recognition:`, error);
+            (window as any).speechRecognitionActive = false;
+            // Try again if we haven't exceeded max retries
+            if (this.retryCount < this.maxRetries) {
+              setTimeout(() => this.attemptReconnect(), 2000);
+            }
+          }
+        }
+      }, delay);
     } else {
       console.error(`🎤 [${this.instanceId}] Max retry attempts reached, stopping transcription`);
       this.stop();
@@ -438,14 +454,34 @@ export class TranscriptionService {
 
   private restart() {
     console.log(`🎤 [${this.instanceId}] Restarting transcription service`);
-    this.stop();
-    setTimeout(() => {
-      if ((window as any).currentTranscriptionService === this) {
-        this.start();
-      } else {
-        console.log(`🎤 [${this.instanceId}] Not restarting - no longer the active instance`);
+
+    // Don't call stop() as it saves transcripts and clears state
+    // Just restart the recognition directly
+    if (this.recognition && this.isTranscribing && (window as any).currentTranscriptionService === this) {
+      try {
+        // Stop current recognition
+        this.recognition.stop();
+        (window as any).speechRecognitionActive = false;
+
+        // Restart after a short delay
+        setTimeout(() => {
+          if (this.isTranscribing && (window as any).currentTranscriptionService === this && this.recognition) {
+            try {
+              console.log(`🎤 [${this.instanceId}] Restarting speech recognition`);
+              (window as any).speechRecognitionActive = true;
+              this.recognition.start();
+            } catch (error) {
+              console.error(`🎤 [${this.instanceId}] Error restarting recognition:`, error);
+              (window as any).speechRecognitionActive = false;
+            }
+          }
+        }, 500);
+      } catch (error) {
+        console.error(`🎤 [${this.instanceId}] Error in restart:`, error);
       }
-    }, 1000);
+    } else {
+      console.log(`🎤 [${this.instanceId}] Not restarting - conditions not met`);
+    }
   }
 
   public getTranscripts(): string[] {
