@@ -1,6 +1,4 @@
-Of course. Here is a clean and professional README.md file for the CollabAI project, based on the documentation provided.
 
------
 
 # CollabAI 🤝🤖
 
