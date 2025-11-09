@@ -42,7 +42,7 @@ async function getAISummary(text: string): Promise<string> {
   try {
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
     const prompt = `Please create a concise, professional summary of this meeting transcript. Focus on the key points discussed and any action items. Format the response with these sections:
 1. Main Topics Discussed (1-2 sentences overview)
