@@ -18,19 +18,28 @@ export class GeminiService {
         throw new Error('Gemini API not configured');
       }
 
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = this.genAI.getGenerativeModel({ 
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024, // Limit output for faster response
+        }
+      });
+
+      // Limit transcript size to avoid timeout
+      const combinedTranscript = transcripts.join('\n').slice(0, 8000); // Limit input size
 
       const prompt = `
-        Please provide a comprehensive yet concise summary of this meeting transcript. Focus on:
-        - Key discussion points and main topics covered
-        - Important decisions made and their rationale
-        - Action items or next steps with clear ownership
-        - Any unresolved issues or follow-up items
+        Provide a concise meeting summary focusing on:
+        - Key discussion points
+        - Important decisions
+        - Action items
+        - Next steps
 
-        Format the summary in a professional, structured manner that would be useful for team members who missed the meeting.
+        Format professionally for team members.
 
-        Meeting Transcript:
-        ${transcripts.join('\n')}
+        Transcript:
+        ${combinedTranscript}
       `;
 
       const result = await model.generateContent(prompt);
@@ -56,8 +65,18 @@ export class GeminiService {
         throw new Error('Gemini API not configured');
       }
 
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const result = await model.generateContent(prompt);
+      const model = this.genAI.getGenerativeModel({ 
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 512, // Faster response
+        }
+      });
+      
+      // Limit prompt size
+      const limitedPrompt = prompt.slice(0, 6000);
+      
+      const result = await model.generateContent(limitedPrompt);
       const response = await result.response;
       const text = response.text();
 
