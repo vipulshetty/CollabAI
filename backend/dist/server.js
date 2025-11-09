@@ -33,8 +33,6 @@ const allowedOrigins = [
     frontendUrl,
     'http://localhost:3000', // Development
     'http://localhost:3002', // Development alternative port
-    'https://collab-ai-frontend.vercel.app', // Production frontend
-    'https://collab-ai-frontend-git-main-your-username.vercel.app', // Vercel preview
     process.env.CORS_ORIGIN, // Additional production origin
 ].filter(Boolean);
 app.use((0, cors_1.default)({
@@ -46,14 +44,9 @@ app.use((0, cors_1.default)({
             return callback(null, true);
         }
         // In development, allow any localhost
-        if (process.env.NODE_ENV !== 'production' && origin && origin.includes('localhost')) {
+        if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
             return callback(null, true);
         }
-        // Allow any vercel.app domain in production
-        if (origin && origin.includes('vercel.app')) {
-            return callback(null, true);
-        }
-        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -63,19 +56,6 @@ app.use((0, cors_1.default)({
 // Parse JSON bodies
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
-// Health check endpoint to prevent server sleeping
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage()
-    });
-});
-// Keep-alive endpoint for Render free tier
-app.get('/ping', (req, res) => {
-    res.status(200).send('pong');
-});
 // Health check endpoint for deployment monitoring
 app.get('/health', (req, res) => {
     res.status(200).json({
@@ -107,14 +87,9 @@ const io = new socket_io_1.Server(httpServer, {
                 return callback(null, true);
             }
             // In development, allow any localhost
-            if (process.env.NODE_ENV !== 'production' && origin && origin.includes('localhost')) {
+            if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
                 return callback(null, true);
             }
-            // Allow any vercel.app domain in production
-            if (origin && origin.includes('vercel.app')) {
-                return callback(null, true);
-            }
-            console.log('Socket.IO CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         },
         methods: ['GET', 'POST'],
@@ -182,19 +157,43 @@ io.on('connection', (socket) => {
             timestamp
         });
     });
-    // Handle transcription events
+    // Handle transcription events with multi-user support
     socket.on('transcription', (data) => {
-        const { roomId, transcript, speaker, timestamp } = data;
-        console.log('Received transcription:', { roomId, transcript, speaker });
-        // Broadcast transcription to all users in the room
-        socket.to(roomId).emit('transcription', {
-            transcript,
-            speaker: speaker || 'Unknown',
-            timestamp: timestamp || new Date().toISOString(),
-            socketId: socket.id
+        const { roomId, transcript, speaker, timestamp, instanceId, isFinal } = data;
+        console.log('Received transcription:', {
+            roomId,
+            transcript: transcript.substring(0, 50) + (transcript.length > 50 ? '...' : ''),
+            speaker,
+            socketId: socket.id,
+            instanceId,
+            isFinal
         });
-        // Save transcription to database
-        saveTranscription(roomId, transcript, speaker || 'Unknown', timestamp || new Date().toISOString());
+        // Only process final transcriptions for storage and broadcast
+        if (isFinal) {
+            // Broadcast transcription to all users in the room (including sender for confirmation)
+            io.to(roomId).emit('transcription', {
+                transcript,
+                speaker: speaker || `User-${socket.id.substring(0, 6)}`,
+                timestamp: timestamp || new Date().toISOString(),
+                socketId: socket.id,
+                instanceId
+            });
+            // Save transcription to database
+            saveTranscription(roomId, transcript, speaker || `User-${socket.id.substring(0, 6)}`, timestamp || new Date().toISOString());
+        }
+    });
+    // Handle interim transcription results (for real-time display)
+    socket.on('transcription-interim', (data) => {
+        const { roomId, transcript, instanceId } = data;
+        // Only broadcast interim results to other users (not back to sender)
+        socket.to(roomId).emit('transcription-interim', {
+            transcript,
+            speaker: `User-${socket.id.substring(0, 6)}`,
+            timestamp: new Date().toISOString(),
+            socketId: socket.id,
+            instanceId,
+            isInterim: true
+        });
     });
     // Handle transcription status updates
     socket.on('transcription-status', (data) => {
