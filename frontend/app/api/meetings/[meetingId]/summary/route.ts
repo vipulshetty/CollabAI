@@ -4,6 +4,8 @@ import { GeminiService } from '@/services/GeminiService';
 
 const geminiService = new GeminiService();
 
+export const maxDuration = 60; // Increase timeout for AI generation
+
 export async function GET(
   request: Request,
   { params }: { params: { meetingId: string } }
@@ -50,10 +52,14 @@ export async function GET(
     let actionPoints: string[] = [];
 
     try {
-      summary = await geminiService.generateSummary(allContent);
+      // Run AI generation in parallel to save time
+      const [generatedSummary, generatedActionPoints] = await Promise.all([
+        geminiService.generateSummary(allContent),
+        generateActionPoints(allContent.join('\n'))
+      ]);
 
-      // Generate action points
-      actionPoints = await generateActionPoints(allContent.join('\n'));
+      summary = generatedSummary;
+      actionPoints = generatedActionPoints;
 
       // Save the generated summary and action points to the database
       // This ensures we don't regenerate it next time (saving API costs and avoiding rate limits)
