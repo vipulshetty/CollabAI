@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { Meeting } from '@/types/meeting';
 import { formatDistanceToNow } from 'date-fns';
-import { 
-  Card, 
-  CardContent, 
+import {
+  Card,
+  CardContent,
   CardFooter,
   CardHeader,
-  CardTitle 
+  CardTitle
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,10 +45,20 @@ export function MeetingCard({ meeting, onJoin }: MeetingCardProps) {
 
       // Fetch summary and action points
       const summaryResponse = await fetch(`/api/meetings/${meeting.id}/summary`);
+      const contentType = summaryResponse.headers.get('content-type');
 
       if (!summaryResponse.ok) {
-        const summaryData = await summaryResponse.json();
-        throw new Error(summaryData.error || 'Failed to fetch summary');
+        let errorMessage = 'Failed to fetch summary';
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await summaryResponse.json();
+          errorMessage = errorData.error || errorMessage;
+        } else {
+          // Handle non-JSON errors (like HTML error pages)
+          const textError = await summaryResponse.text();
+          console.error('Non-JSON error response:', textError);
+          errorMessage = `Server Error: ${summaryResponse.status} ${summaryResponse.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const summaryData = await summaryResponse.json();
@@ -144,7 +154,7 @@ export function MeetingCard({ meeting, onJoin }: MeetingCardProps) {
               {meeting.description || 'No description provided'}
             </p>
           </div>
-          <Badge 
+          <Badge
             variant={getBadgeVariant(meeting.status)}
             className={cn(
               "px-2 py-1 text-xs font-medium rounded-full",
@@ -237,7 +247,7 @@ export function MeetingCard({ meeting, onJoin }: MeetingCardProps) {
                       AI-Generated Meeting Intelligence
                     </h2>
                     <p className="text-sm opacity-90">
-                      ✨ AI-powered meeting analysis with automated transcription and intelligent insights<br/>
+                      ✨ AI-powered meeting analysis with automated transcription and intelligent insights<br />
                       📈 Streamlined productivity through automated documentation and action tracking
                     </p>
                   </div>

@@ -272,7 +272,7 @@ async function extractKeyTopics(transcript: string): Promise<string[]> {
 
     // Get top 5 most frequent words as key topics
     const sortedWords = Object.entries(wordCount)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([word]) => word);
 
