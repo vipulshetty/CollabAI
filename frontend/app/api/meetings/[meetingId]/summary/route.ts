@@ -4,10 +4,6 @@ import { GeminiService } from '@/services/GeminiService';
 
 const geminiService = new GeminiService();
 
-// Set max duration for this API route (60 seconds for Pro plan, 10 for Hobby)
-export const maxDuration = 60; // Requires Vercel Pro plan
-export const dynamic = 'force-dynamic';
-
 export async function GET(
   request: Request,
   { params }: { params: { meetingId: string } }
@@ -58,6 +54,18 @@ export async function GET(
 
       // Generate action points
       actionPoints = await generateActionPoints(allContent.join('\n'));
+
+      // Save the generated summary and action points to the database
+      // This ensures we don't regenerate it next time (saving API costs and avoiding rate limits)
+      const { error: updateError } = await supabase
+        .from('meeting_transcripts')
+        .update({ summary }) // Note: We're updating all transcripts for this meeting with the same summary
+        .eq('meeting_id', params.meetingId);
+
+      if (updateError) {
+        console.error('Error saving generated summary:', updateError);
+        // We continue even if saving fails, so the user still sees the summary
+      }
     } catch (error) {
       console.error('Error generating AI content:', error);
 
@@ -173,21 +181,21 @@ export async function POST(
 
 async function generateActionPoints(transcript: string): Promise<string[]> {
   try {
-    // Limit transcript size for faster processing
-    const limitedTranscript = transcript.slice(0, 4000);
-    
     // Use Gemini AI to extract action items intelligently
     const prompt = `
-    Extract 3-4 specific action items from this meeting:
+    Analyze the following meeting transcript and extract specific action items or tasks that need to be completed.
+    Focus on concrete, actionable items with clear ownership or next steps.
 
-    ${limitedTranscript}
+    Transcript:
+    ${transcript}
 
-    Format:
+    Please provide a list of action items in this format:
     - [Action item 1]
     - [Action item 2]
     - [Action item 3]
-    
-    Be concise and specific.
+
+    If no clear action items are found, suggest 2-3 potential follow-up tasks based on the discussion.
+    Focus only on what was actually discussed in the meeting.
     `;
 
     const response = await geminiService.generateText(prompt);
@@ -205,7 +213,8 @@ async function generateActionPoints(transcript: string): Promise<string[]> {
     return actionItems.length > 0 ? actionItems : [
       'Review meeting notes and key decisions',
       'Follow up with participants on discussed topics',
-      'Schedule next meeting if needed'
+      'Schedule next meeting if needed',
+      'Document important decisions made during the meeting'
     ];
   } catch (error) {
     console.error('Error generating action points with AI:', error);

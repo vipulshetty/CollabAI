@@ -29,12 +29,12 @@ const Feature = ({ icon, title, description }: { icon: React.ReactNode; title: s
     {/* Decorative elements */}
     <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-40 blur transition duration-500" />
     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
-    
+
     {/* Main content */}
     <div className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl p-8 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl hover:shadow-2xl transition-all duration-300 h-full overflow-hidden">
       {/* Animated background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      
+
       {/* Icon container with gradient background */}
       <div className="relative bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-4 w-fit mb-6 group-hover:scale-110 transition-transform duration-300">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-sm" />
@@ -146,27 +146,14 @@ export default function HomePage() {
               ) : (
                 <Link href="/auth/signin">
                   <motion.button
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="relative group overflow-hidden"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200"
                   >
-                    {/* Animated RGB border */}
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-blue-500 via-indigo-500 to-purple-500 animate-pulse p-0.5">
-                      <div className="absolute inset-0.5 bg-white/10 backdrop-blur-sm rounded-lg"></div>
-                    </div>
-
-                    {/* Main button content */}
-                    <div className="relative bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 text-white px-8 py-3 rounded-xl font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 group-hover:scale-105">
-                      <span className="relative z-10 flex items-center gap-2">
-                        <svg className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        Sign In
-                      </span>
-
-                      {/* Shine effect */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    </div>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    Sign In
                   </motion.button>
                 </Link>
               )}
@@ -192,7 +179,7 @@ export default function HomePage() {
               Smart Video Meetings with AI
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
-              Transform your virtual meetings with AI-powered features. Get real-time transcription, 
+              Transform your virtual meetings with AI-powered features. Get real-time transcription,
               smart summaries, and collaborative tools all in one place.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
@@ -224,7 +211,7 @@ export default function HomePage() {
           </motion.div>
 
           {/* Features Grid */}
-          <motion.div 
+          <motion.div
             variants={container}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"
           >

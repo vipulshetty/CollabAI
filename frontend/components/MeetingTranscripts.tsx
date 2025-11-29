@@ -91,37 +91,21 @@ const MeetingTranscripts: FC<MeetingTranscriptsProps> = ({ meetingId }) => {
     try {
       setIsGeneratingSummary(true);
       setOpen(true);
-      
-      // Create an AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
-      
       const response = await fetch(`/api/meetings/${meetingId}/summary`, {
         method: 'POST',
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Summary generation failed:', errorData);
-        throw new Error('Failed to generate summary. Please try again.');
+        throw new Error('Failed to generate summary');
       }
 
-      const data = await response.json();
-      const newSummary = data.summary;
+      const { summary: newSummary } = await response.json();
       setSummary(newSummary);
 
       // Refresh transcripts to get updated summary
       fetchTranscripts();
     } catch (err) {
-      console.error('Error in handleGenerateSummary:', err);
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Summary generation is taking longer than expected. Please try again or contact support.');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to generate summary');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to generate summary');
     } finally {
       setIsGeneratingSummary(false);
     }
