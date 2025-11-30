@@ -2,7 +2,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Video, Users, Shield, ArrowRight, Brain, FileText, Sparkles } from 'lucide-react';
+import { Video, Users, Shield, ArrowRight, Brain, FileText, Sparkles, Play } from 'lucide-react';
 import Link from 'next/link';
 
 const container = {
@@ -195,6 +195,21 @@ export default function HomePage() {
                   <ArrowRight className="inline-block ml-2 w-5 h-5" />
                 </div>
               </motion.button>
+              
+              <Link href="https://www.youtube.com/watch?v=ve-Ug5Szzmg" target="_blank" rel="noopener noreferrer">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="relative group"
+                >
+                  <div className="absolute inset-0 bg-pink-600/20 dark:bg-pink-500/20 rounded-xl blur-sm group-hover:blur-md transition-all duration-300" />
+                  <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm text-gray-800 dark:text-white px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-lg font-semibold flex items-center gap-2">
+                    <Play className="w-5 h-5 text-pink-600" />
+                    Watch Demo
+                  </div>
+                </motion.button>
+              </Link>
+
               <Link href="/about">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
